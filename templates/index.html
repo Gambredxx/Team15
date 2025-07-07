@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Team15 Nation - Home</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <style>
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fadeInUp {
+      animation: fadeInUp 0.8s ease-out forwards;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+    .animate-pulse {
+      animation: pulse 2s infinite;
+    }
+    @keyframes scroll {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-100%); }
+    }
+    .animate-scroll {
+      animation: scroll 60s linear infinite;
+    }
+    .testimonial-container {
+      display: flex;
+      width: fit-content;
+    }
+    .faq-item {
+      transition: all 0.3s ease;
+    }
+    .faq-item.active .faq-answer {
+      max-height: 200px;
+      opacity: 1;
+      padding: 1rem;
+    }
+    .faq-answer {
+      max-height: 0;
+      opacity: 0;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+  </style>
+<header class="text-white py-12 relative">
+  <!-- background image -->
+  <div class="absolute inset-0 bg-cover bg-center z-[-1]" style="background-image: url('/static/images/your-header.jpg');"></div>
+  <!-- content -->
+  <div class="container mx-auto px-4 text-center animate-fadeInUp relative z-10">
+    <div class="flex items-center justify-center mb-6">
+      <img src="/static/images/team15-logo.png" alt="Team15 Logo" class="h-20 w-20 mr-4">
+      <h1 class="text-7xl md:text-8xl font-extrabold text-yellow-400 drop-shadow-2xl">Team15</h1>
+    </div>
+    <p class="text-xl text-yellow-100">Join the biggest community in Uganda and turn your 15,000UGX to over 1 million UGX!</p>
+  </div>
+</header>
+
+<section class="py-16 bg-white animate-fadeInUp">
+    <div class="container mx-auto px-4">
+      <h2 class="text-4xl font-extrabold text-center text-yellow-400 mb-10 drop-shadow-md">How to Earn Money With Team15</h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div class="p-8 bg-green-300 rounded-xl shadow-xl transform hover:scale-105 transition duration-300">
+          <i class="fas fa-users text-4xl text-blue-600 mx-auto mb-4"></i>
+          <h3 class="text-2xl font-semibold text-gray-900 mb-3">Referral Income</h3>
+          <p class="text-gray-700">Earn UGX 5,000 for each new member you refer.</p>
+        </div>
+        <div class="p-8 bg-green-300 rounded-xl shadow-xl transform hover:scale-105 transition duration-300">
+          <i class="fas fa-handshake text-4xl text-blue-600 mx-auto mb-4"></i>
+          <h3 class="text-2xl font-semibold text-gray-900 mb-3">Pairing Bonuses</h3>
+          <p class="text-gray-700">Get bonuses as your left and right teams grow.</p>
+        </div>
+        <div class="p-8 bg-green-300 rounded-xl shadow-xl transform hover:scale-105 transition duration-300">
+          <i class="fas fa-tasks text-4xl text-blue-600 mx-auto mb-4"></i>
+          <h3 class="text-2xl font-semibold text-gray-900 mb-3">Micro-Task Rewards</h3>
+          <p class="text-gray-700">Earn up to UGX 7,000 per day with simple tasks.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="py-16 bg-gradient-to-r from-blue-800 to-purple-700 text-white animate-fadeInUp">
+    <div class="container mx-auto px-4 text-center">
+      <h2 class="text-4xl font-extrabold text-yellow-400 mb-10 drop-shadow-md">Ready to Start Earning?</h2>
+      <a href="/payment" class="mt-10 inline-block bg-green-400 text-black px-10 py-4 rounded-full text-xl font-semibold hover:bg-green-500 animate-pulse transition duration-300">Join Now</a>
+    </div>
+  </section>
+
+  <section class="py-16 bg-green-100 animate-fadeInUp">
+    <div class="container mx-auto px-4">
+      <h2 class="text-4xl font-extrabold text-center text-yellow-400 mb-10 drop-shadow-md">What Our Members Say</h2>
+      <div class="overflow-hidden">
+        <div class="testimonial-container flex space-x-6">
+          <div class="min-w-[300px] p-6 bg-yellow-200 rounded-xl shadow-lg">
+            <p class="text-gray-700">"Team15 changed my life! I earned UGX 50,000 in my first week!"</p>
+            <p class="mt-4 font-semibold text-gray-900">Sarah K. (Kampala)</p>
+          </div>
+          <div class="min-w-[300px] p-6 bg-yellow-200 rounded-xl shadow-lg">
+            <p class="text-gray-700">"The micro-tasks are so easy, and the payouts are amazing!"</p>
+            <p class="mt-4 font-semibold text-gray-900">James M. (Gulu)</p>
+          </div>
+          <div class="min-w-[300px] p-6 bg-yellow-200 rounded-xl shadow-lg">
+            <p class="text-gray-700">"I referred 5 friends and got UGX 25,000 instantly!"</p>
+            <p class="mt-4 font-semibold text-gray-900">Aisha N. (Mbarara)</p>
+          </div>
+          <div class="min-w-[300px] p-6 bg-yellow-200 rounded-xl shadow-lg">
+            <p class="text-gray-700">"Team15's community is supportive and inspiring!"</p>
+            <p class="mt-4 font-semibold text-gray-900">David O. (Jinja)</p>
+          </div>
+          <div class="min-w-[300px] p-6 bg-yellow-200 rounded-xl shadow-lg">
+            <p class="text-gray-700">"Pairing bonuses boosted my earnings significantly!"</p>
+            <p class="mt-4 font-semibold text-gray-900">Esther W. (Arua)</p>
+          </div>
+          <div class="min-w-[300px] p-6 bg-yellow-200 rounded-xl shadow-lg">
+            <p class="text-gray-700">"I love the daily tasks—quick and profitable!"</p>
+            <p class="mt-4 font-semibold text-gray-900">Michael T. (Masaka)</p>
+          </div>
+          <div class="min-w-[300px] p-6 bg-yellow-200 rounded-xl shadow-lg">
+            <p class="text-gray-700">"Joined a month ago and already hit UGX 200,000!"</p>
+            <p class="mt-4 font-semibold text-gray-900">Fatima Z. (Lira)</p>
+          </div>
+          <div class="min-w-[300px] p-6 bg-yellow-200 rounded-xl shadow-lg">
+            <p class="text-gray-700">"The Telegram group keeps me motivated every day!"</p>
+            <p class="mt-4 font-semibold text-gray-900">Peter L. (Mbale)</p>
+          </div>
+          <div class="min-w-[300px] p-6 bg-yellow-200 rounded-xl shadow-lg">
+            <p class="text-gray-700">"Team15 is the best investment I've made!"</p>
+            <p class="mt-4 font-semibold text-gray-900">Grace P. (Soroti)</p>
+          </div>
+          <div class="min-w-[300px] p-6 bg-yellow-200 rounded-xl shadow-lg">
+            <p class="text-gray-700">"Earning while having fun—what's not to love?"</p>
+            <p class="mt-4 font-semibold text-gray-900">Joseph R. (Fort Portal)</p>
+          </div>
+        </div>
+      </div>
+      <script>
+        document.addEventListener('DOMContentLoaded', () => {
+          const container = document.querySelector('.testimonial-container');
+          const clone = container.innerHTML;
+          container.innerHTML += clone;
+          container.classList.add('animate-scroll');
+        });
+      </script>
+  </section>
+
+  <section class="py-16 bg-white animate-fadeInUp">
+    <div class="container mx-auto px-4">
+      <h2 class="text-4xl font-extrabold text-center text-yellow-400 mb-10 drop-shadow-md">Frequently Asked Questions</h2>
+      <div class="max-w-2xl mx-auto space-y-4">
+        <div class="faq-item bg-green-300 rounded-xl shadow-lg p-4">
+          <button class="w-full text-left text-xl font-semibold text-gray-900 flex justify-between items-center" onclick="this.parentElement.classList.toggle('active')">
+            How do I start earning with Team15?
+            <i class="fas fa-chevron-down text-blue-600"></i>
+          </button>
+          <div class="faq-answer text-gray-700">
+            Pay UGX 15,000 to join, get your unique Member ID, join our Telegram group, and start referring friends or completing daily micro-tasks to earn up to UGX 7,000 per day!
+          </div>
+        </div>
+        <div class="faq-item bg-green-300 rounded-xl shadow-lg p-4">
+          <button class="w-full text-left text-xl font-semibold text-gray-900 flex justify-between items-center" onclick="this.parentElement.classList.toggle('active')">
+            What's the minimum withdrawal?
+            <i class="fas fa-chevron-down text-blue-600"></i>
+          </button>
+          <div class="faq-answer text-gray-700">
+            There's no minimum withdrawal amount. You can withdraw any amount you've earned at any time.
+          </div>
+        </div>
+        <div class="faq-item bg-green-300 rounded-xl shadow-lg p-4">
+          <button class="w-full text-left text-xl font-semibold text-gray-900 flex justify-between items-center" onclick="this.parentElement.classList.toggle('active')">
+            What are micro-tasks?
+            <i class="fas fa-chevron-down text-blue-600"></i>
+          </button>
+          <div class="faq-answer text-gray-700">
+            Micro-tasks are simple activities like watching videos, sharing posts on social media, or completing surveys. Each task can earn you up to UGX 7,000 daily.
+          </div>
+        </div>
+        <div class="faq-item bg-green-300 rounded-xl shadow-lg p-4">
+          <button class="w-full text-left text-xl font-semibold text-gray-900 flex justify-between items-center" onclick="this.parentElement.classList.toggle('active')">
+            How do referrals work?
+            <i class="fas fa-chevron-down text-blue-600"></i>
+          </button>
+          <div class="faq-answer text-gray-700">
+            Share your unique Member ID with friends. When they join using your ID, you earn UGX 5,000 per referral, credited to your account.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="bg-gray-900 text-white py-10">
+    <div class="container mx-auto px-4 text-center">
+      <p class="text-yellow-200">© 2025 Team15 Nation. All rights reserved.</p>
+    </div>
+  </footer>
+</body>
+</html>

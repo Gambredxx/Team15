@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Team15 Nation - Member Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"/>
+  <style>
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fadeInUp {
+      animation: fadeInUp 0.8s ease-out forwards;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-b from-green-200 to-yellow-200 font-sans">
+  <header class="bg-gradient-to-r from-blue-800 to-purple-700 text-white py-10">
+    <div class="container mx-auto px-4 text-center animate-fadeInUp">
+      <div class="flex items-center justify-center mb-4">
+        <img src="/static/images/team15-logo.png" alt="Team15 Logo" class="h-16 w-16 mr-3"/>
+        <h1 class="text-4xl md:text-5xl font-extrabold text-yellow-400 drop-shadow-lg">Your Dashboard</h1>
+      </div>
+      <p class="text-lg text-yellow-200">Welcome, {{ member[1] }}!</p>
+    </div>
+  </header>
+
+  <section class="py-16 bg-white animate-fadeInUp">
+    <div class="container mx-auto px-4 max-w-2xl space-y-6">
+      <div class="bg-green-300 rounded-2xl shadow-2xl p-8">
+        <h2 class="text-2xl font-semibold text-gray-900 mb-4">Your Details</h2>
+        <ul class="text-gray-800 space-y-2">
+          <li><strong>Name:</strong> {{ member[1] }}</li>
+          <li><strong>National ID:</strong> {{ member[2] }}</li>
+          <li><strong>Phone:</strong> {{ member[3] }}</li>
+          <li><strong>Member ID:</strong> <span class="text-green-600 font-semibold">{{ member[5] }}</span></li>
+          <li><strong>Amount Paid:</strong> UGX {{ member[4] }}</li>
+          <li><strong>Joined:</strong> {{ member[6] }}</li>
+        </ul>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-yellow-100 p-4 rounded-xl text-center">
+          <p class="text-sm text-gray-600">Total Earnings</p>
+          <p class="text-2xl font-bold text-green-700">UGX {{ total_earnings }}</p>
+        </div>
+        <div class="bg-yellow-100 p-4 rounded-xl text-center">
+          <p class="text-sm text-gray-600">Referrals</p>
+          <p class="text-2xl font-bold text-green-700">{{ referral_count }}</p>
+        </div>
+        <div class="bg-yellow-100 p-4 rounded-xl text-center">
+          <p class="text-sm text-gray-600">Total Withdrawn</p>
+          <p class="text-2xl font-bold text-green-700">UGX {{ total_withdrawn }}</p>
+        </div>
+      </div>
+
+      <div class="bg-green-300 rounded-2xl shadow-2xl p-8">
+        <h2 class="text-2xl font-semibold text-gray-900 mb-4">Request Withdrawal</h2>
+        <form action="{{ url_for('request_withdrawal') }}" method="POST" class="space-y-4">
+          <div>
+            <label for="amount" class="block text-gray-800 font-semibold mb-1">Amount</label>
+            <input type="number" name="amount" id="amount" required min="1000"
+              class="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600"/>
+          </div>
+          <button type="submit"
+            class="w-full bg-green-500 text-white px-6 py-3 rounded-full font-semibold hover:bg-green-600 transition duration-300">
+            Submit Withdrawal Request
+          </button>
+        </form>
+      </div>
+
+      <div class="text-center">
+        <a href="{{ url_for('logout') }}"
+          class="inline-block bg-red-500 text-white px-6 py-3 rounded-full font-semibold hover:bg-red-600 transition duration-300">
+          Logout
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <footer class="bg-gray-900 text-white py-10 mt-10">
+    <div class="container mx-auto px-4 text-center">
+      <p class="text-yellow-200">© 2025 Team15 Nation. All rights reserved.</p>
+    </div>
+  </footer>
+</body>
+</html>

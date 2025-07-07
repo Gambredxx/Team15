@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Team15 Nation - Admin Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"/>
+  <style>
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fadeInUp {
+      animation: fadeInUp 0.8s ease-out forwards;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-b from-green-200 to-yellow-200 font-sans">
+  <header class="bg-gradient-to-r from-blue-800 to-purple-700 text-white py-10">
+    <div class="container mx-auto px-4 text-center animate-fadeInUp">
+      <div class="flex items-center justify-center mb-4">
+        <img src="/static/images/team15-logo.png" alt="Team15 Logo" class="h-16 w-16 mr-3"/>
+        <h1 class="text-5xl md:text-6xl font-extrabold text-yellow-400 drop-shadow-lg">Admin Dashboard</h1>
+      </div>
+    </div>
+  </header>
+
+  <section class="py-16 bg-white animate-fadeInUp">
+    <div class="container mx-auto px-4 space-y-10">
+
+      <!-- Payments -->
+      <div>
+        <h2 class="text-3xl font-extrabold text-yellow-400 mb-4 drop-shadow-md">Payment Records</h2>
+        <div class="overflow-x-auto">
+          <table class="w-full bg-green-300 rounded-xl shadow-xl">
+            <thead>
+              <tr class="bg-green-400 text-gray-900">
+                <th class="p-3">ID</th>
+                <th class="p-3">Name</th>
+                <th class="p-3">NIN</th>
+                <th class="p-3">Phone</th>
+                <th class="p-3">Amount</th>
+                <th class="p-3">Member ID</th>
+                <th class="p-3">Joined</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for p in payments %}
+              <tr class="border-t border-green-200">
+                <td class="p-3">{{ p[0] }}</td>
+                <td class="p-3">{{ p[1] }}</td>
+                <td class="p-3">{{ p[2] }}</td>
+                <td class="p-3">{{ p[3] }}</td>
+                <td class="p-3">{{ p[4] }}</td>
+                <td class="p-3">{{ p[5] }}</td>
+                <td class="p-3">{{ p[6] }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Referrals -->
+      <div>
+        <h2 class="text-3xl font-extrabold text-yellow-400 mb-4 drop-shadow-md">Referrals per Member</h2>
+        <div class="overflow-x-auto">
+          <table class="w-full bg-green-300 rounded-xl shadow-xl">
+            <thead>
+              <tr class="bg-green-400 text-gray-900">
+                <th class="p-3">Referrer Member ID</th>
+                <th class="p-3">Number of Referrals</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for r in referrals %}
+              <tr class="border-t border-green-200">
+                <td class="p-3">{{ r[0] }}</td>
+                <td class="p-3">{{ r[1] }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Withdrawals -->
+      <div>
+        <h2 class="text-3xl font-extrabold text-yellow-400 mb-4 drop-shadow-md">Withdrawals</h2>
+        <div class="overflow-x-auto">
+          <table class="w-full bg-green-300 rounded-xl shadow-xl">
+            <thead>
+              <tr class="bg-green-400 text-gray-900">
+                <th class="p-3">ID</th>
+                <th class="p-3">Member ID</th>
+                <th class="p-3">Amount</th>
+                <th class="p-3">Status</th>
+                <th class="p-3">Requested On</th>
+                <th class="p-3">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for w in withdrawals %}
+              <tr class="border-t border-green-200">
+                <td class="p-3">{{ w[0] }}</td>
+                <td class="p-3">{{ w[1] }}</td>
+                <td class="p-3">{{ w[2] }}</td>
+                <td class="p-3">{{ w[3] }}</td>
+                <td class="p-3">{{ w[4] }}</td>
+                <td class="p-3 space-x-2">
+                  <a href="{{ url_for('approve_withdrawal', id=w[0]) }}"
+                     class="inline-block bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">
+                    Approve
+                  </a>
+                  <a href="{{ url_for('reject_withdrawal', id=w[0]) }}"
+                     class="inline-block bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">
+                    Reject
+                  </a>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <footer class="bg-gray-900 text-white py-10 mt-10">
+    <div class="container mx-auto px-4 text-center">
+      <p class="text-yellow-200">© 2025 Team15 Nation. All rights reserved.</p>
+    </div>
+  </footer>
+</body>
+</html>

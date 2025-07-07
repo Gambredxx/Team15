@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Team15 Nation - Member Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"/>
+  <style>
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fadeInUp {
+      animation: fadeInUp 0.8s ease-out forwards;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-b from-green-200 to-yellow-200 font-sans">
+  <header class="bg-gradient-to-r from-blue-800 to-purple-700 text-white py-10">
+    <div class="container mx-auto px-4 text-center animate-fadeInUp">
+      <div class="flex items-center justify-center mb-4">
+        <img src="/static/images/team15-logo.png" alt="Team15 Logo" class="h-16 w-16 mr-3"/>
+        <h1 class="text-4xl md:text-5xl font-extrabold text-yellow-400 drop-shadow-lg">Member Login</h1>
+      </div>
+      <p class="text-lg text-yellow-200">Access your Team15 Dashboard</p>
+    </div>
+  </header>
+
+  <section class="py-16 bg-white animate-fadeInUp">
+    <div class="container mx-auto px-4">
+      <form method="POST" class="max-w-md mx-auto p-8 bg-green-300 rounded-2xl shadow-2xl">
+        {% if error %}
+        <p class="mb-4 text-red-600 font-semibold">{{ error }}</p>
+        {% endif %}
+        <div class="mb-6">
+          <label for="member_id" class="block text-gray-900 font-semibold mb-2">Member ID</label>
+          <input type="text" id="member_id" name="member_id" required
+            placeholder="e.g., TM12345"
+            class="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600"/>
+        </div>
+        <button type="submit"
+          class="w-full bg-green-400 text-black px-6 py-3 rounded-full text-xl font-semibold hover:bg-green-500 transition duration-300">
+          Login
+        </button>
+      </form>
+    </div>
+  </section>
+
+  <footer class="bg-gray-900 text-white py-10">
+    <div class="container mx-auto px-4 text-center">
+      <p class="text-yellow-200">© 2025 Team15 Nation. All rights reserved.</p>
+    </div>
+  </footer>
+</body>
+</html>

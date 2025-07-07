@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Team15 Nation - Thank You</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"/>
+  <style>
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fadeInUp {
+      animation: fadeInUp 0.8s ease-out forwards;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+    .animate-pulse {
+      animation: pulse 2s infinite;
+    }
+  </style>
+</head>
+<body class="bg-gradient-to-b from-green-200 to-yellow-200 font-sans">
+  <header class="bg-gradient-to-r from-blue-800 to-purple-700 text-white py-10">
+    <div class="container mx-auto px-4 text-center animate-fadeInUp">
+      <div class="flex items-center justify-center mb-4">
+        <img src="/static/images/team15-logo.png" alt="Team15 Logo" class="h-16 w-16 mr-3" />
+        <h1 class="text-5xl md:text-6xl font-extrabold text-yellow-400 drop-shadow-lg">Welcome to Team15!</h1>
+      </div>
+    </div>
+  </header>
+
+  <section class="py-16 bg-white animate-fadeInUp">
+    <div class="container mx-auto px-4 text-center">
+      <i class="fas fa-check-circle text-green-500 text-6xl mb-4"></i>
+      <h2 class="text-4xl font-extrabold text-yellow-400 mb-6 drop-shadow-md">🎉 Congratulations, {{ name }}!</h2>
+      <p class="text-2xl text-gray-900 mb-6">Your payment was successful.</p>
+      <p class="text-xl font-semibold text-gray-900 mb-6">
+        Your Unique Team15 Member ID:
+        <span id="memberId" class="text-green-500 bg-green-100 px-3 py-1 rounded-full">{{ member_id }}</span>
+        <button onclick="copyMemberId()" class="ml-2 text-blue-600 hover:text-blue-800" aria-label="Copy Member ID">
+          <i class="fas fa-copy"></i>
+        </button>
+      </p>
+
+      <h3 class="text-3xl font-semibold text-gray-900 mb-6">What happens next?</h3>
+      <p class="text-gray-700 mb-8">Team15 is designed to help you earn in 3 exciting ways:</p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-10">
+        <div class="p-8 bg-green-300 rounded-xl shadow-xl transform hover:scale-105 transition duration-300">
+          <i class="fas fa-user-plus text-3xl text-blue-600 mb-4"></i>
+          <h4 class="text-2xl font-semibold text-gray-900 mb-3">Referral Income</h4>
+          <p class="text-gray-700">Earn UGX 5,000 for each new member you refer. Share your unique ID to track commissions.</p>
+        </div>
+        <div class="p-8 bg-green-300 rounded-xl shadow-xl transform hover:scale-105 transition duration-300">
+          <i class="fas fa-handshake text-3xl text-blue-600 mb-4"></i>
+          <h4 class="text-2xl font-semibold text-gray-900 mb-3">Team Pairing Bonuses</h4>
+          <p class="text-gray-700">Get bonuses as your left and right teams grow automatically.</p>
+        </div>
+        <div class="p-8 bg-green-300 rounded-xl shadow-xl transform hover:scale-105 transition duration-300">
+          <i class="fas fa-tasks text-3xl text-blue-600 mb-4"></i>
+          <h4 class="text-2xl font-semibold text-gray-900 mb-3">Micro-Task Earnings</h4>
+          <p class="text-gray-700">Earn up to UGX 7,000 weekly by completing tasks like watching videos or sharing posts.</p>
+        </div>
+      </div>
+
+      <h3 class="text-3xl font-semibold text-gray-900 mb-6">Example Weekly Tasks</h3>
+      <ul class="text-gray-700 mb-8 text-left max-w-md mx-auto space-y-2">
+        <li><i class="fas fa-video mr-2 text-blue-600"></i>Watch 3 short videos (UGX 1,000)</li>
+        <li><i class="fas fa-share-alt mr-2 text-blue-600"></i>Share 2 posts on Facebook or WhatsApp (UGX 1,000)</li>
+        <li><i class="fas fa-poll mr-2 text-blue-600"></i>Complete 1 survey (UGX 1,000)</li>
+      </ul>
+
+      <h3 class="text-3xl font-semibold text-gray-900 mb-6">🟢 How To Start</h3>
+      <ol class="text-gray-700 mb-8 text-left max-w-md mx-auto space-y-2">
+        <li>
+          <i class="fas fa-telegram mr-2 text-blue-600"></i>
+          Join our official Telegram Group:
+          <a href="https://t.me/+_SshrxDnjpZlYmI0" class="text-green-400 hover:underline">Join Now</a>
+        </li>
+        <li><i class="fas fa-save mr-2 text-blue-600"></i>Save your Unique ID: <span class="text-green-500">{{ member_id }}</span></li>
+        <li><i class="fas fa-rocket mr-2 text-blue-600"></i>Start referring and completing weekly tasks.</li>
+      </ol>
+
+      <a href="https://t.me/+_SshrxDnjpZlYmI0"
+        class="inline-block mt-6 bg-green-400 text-black px-8 py-4 rounded-full text-xl font-semibold hover:bg-green-500 animate-pulse transition duration-300">
+        Join Telegram Group Now
+      </a>
+
+      <p class="text-2xl font-semibold text-gray-900 mt-10">🙌 Welcome to Team15—Let’s Make Money Together!</p>
+    </div>
+  </section>
+
+  <footer class="bg-gray-900 text-white py-10">
+    <div class="container mx-auto px-4 text-center">
+      <p class="text-yellow-200">© 2025 Team15 Nation. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <script>
+    function copyMemberId() {
+      const id = document.getElementById("memberId").innerText;
+      navigator.clipboard.writeText(id);
+      alert("Member ID copied to clipboard!");
+    }
+  </script>
+</body>
+</html>

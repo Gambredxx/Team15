@@ -69,9 +69,22 @@
 
         <div class="mb-6">
           <label for="phone" class="block text-gray-900 font-semibold mb-2">Phone Number</label>
-          <input type="tel" id="phone" name="phone" aria-label="Phone Number" required
-            class="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600" />
-          <p class="text-sm text-gray-600 mt-1">This must be the number linked to your Mobile Money account.</p>
+          <div class="flex">
+            <span class="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 bg-gray-100 text-gray-600">
+              +256
+            </span>
+            <input
+              type="tel"
+              id="phone"
+              name="phone"
+              aria-label="Phone Number"
+              required
+              placeholder="7XXXXXXXX"
+              pattern="[7-9][0-9]{8}"
+              class="w-full p-3 rounded-r-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600"
+            />
+          </div>
+          <p class="text-sm text-gray-600 mt-1">Enter the rest of your number (without the country code).</p>
         </div>
 
         <!-- Hidden input for referral tracking -->

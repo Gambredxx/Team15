@@ -7,9 +7,9 @@ app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'  # Replace with a secure key
 
 EASYPAY_API_URL = "https://www.easypay.co.ug/api/"
-EASYPAY_USERNAME = "331d3b1290d90f31"      # Your client id
-EASYPAY_PASSWORD = "7377396e883e612a"      # Your secret key
-CALLBACK_URL = "https://ancient-thicket-16292.herokuapp.com/webhook"  # Your webhook URL
+EASYPAY_USERNAME = "331d3b1290d90f31"
+EASYPAY_PASSWORD = "7377396e883e612a"
+CALLBACK_URL = "https://ancient-thicket-16292.herokuapp.com/webhook"
 
 # --------------------------
 # Database initialization
@@ -17,8 +17,6 @@ CALLBACK_URL = "https://ancient-thicket-16292.herokuapp.com/webhook"  # Your web
 def init_db():
     with sqlite3.connect('database.db') as conn:
         c = conn.cursor()
-
-        # Update payments table to add reference and status
         c.execute('''
             CREATE TABLE IF NOT EXISTS payments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,7 +30,6 @@ def init_db():
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
-
         c.execute('''
             CREATE TABLE IF NOT EXISTS referrals (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -41,7 +38,6 @@ def init_db():
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
-
         c.execute('''
             CREATE TABLE IF NOT EXISTS earnings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,7 +47,6 @@ def init_db():
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
-
         c.execute('''
             CREATE TABLE IF NOT EXISTS withdrawals (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,7 +56,6 @@ def init_db():
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
-
         conn.commit()
 
 # --------------------------
@@ -70,6 +64,16 @@ def init_db():
 def generate_member_id():
     number = random.randint(10000, 99999)
     return f"TM{number}"
+
+def normalize_phone(phone):
+    phone = phone.strip().replace(" ", "").replace("-", "")
+    if phone.startswith("256"):
+        return phone
+    if phone.startswith("0"):
+        return "256" + phone[1:]
+    if phone.startswith("7") or phone.startswith("3"):
+        return "256" + phone
+    return phone
 
 # --------------------------
 # Routes
@@ -87,14 +91,13 @@ def payment():
 def process_payment():
     name = request.form['name']
     nin = request.form['nin']
-    phone = request.form['phone']
+    raw_phone = request.form['phone']
+    phone = normalize_phone(raw_phone)
     amount = int(request.form.get('amount', 15000))
     member_id = generate_member_id()
 
-    # Create unique reference combining member_id and random suffix
     reference = f"{member_id}-{random.randint(1000,9999)}"
 
-    # Build payload for EasyPay mmdeposit
     payload = {
         "username": EASYPAY_USERNAME,
         "password": EASYPAY_PASSWORD,
@@ -106,7 +109,6 @@ def process_payment():
         "reason": "Team15 membership payment"
     }
 
-    # Call EasyPay API
     try:
         response = requests.post(EASYPAY_API_URL, json=payload, timeout=15)
         data = response.json()
@@ -117,7 +119,6 @@ def process_payment():
         err = data.get("errormsg", "Unknown error")
         return f"Payment initiation failed: {err}", 400
 
-    # Save payment as pending in DB
     with sqlite3.connect('database.db') as conn:
         c = conn.cursor()
         c.execute(
@@ -126,7 +127,6 @@ def process_payment():
         )
         conn.commit()
 
-    # Show pending page telling user to complete payment on their phone
     return render_template("payment_pending.html", name=name, member_id=member_id, reference=reference)
 
 @app.route('/thankyou')
@@ -140,11 +140,6 @@ def webhook():
     data = request.json
     print("✅ Webhook received:", data)
 
-    # Optional: Validate the secret if EasyPay sends it (not in docs, so skip or implement if provided)
-    # received_secret = data.get('secret')
-    # if received_secret != EASYPAY_PASSWORD:
-    #     return "Invalid secret", 403
-
     reference = data.get("reference")
     transaction_id = data.get("transactionId")
     phone = data.get("phone")
@@ -153,13 +148,14 @@ def webhook():
     if not reference:
         return "Missing reference", 400
 
-    # Update payment record status to Confirmed
     with sqlite3.connect('database.db') as conn:
         c = conn.cursor()
         c.execute("UPDATE payments SET status = 'Confirmed' WHERE reference = ?", (reference,))
         conn.commit()
 
-    print(f"Payment confirmed for reference: {reference}, transaction ID: {transaction_id}")
+    # Log webhook to file for debugging
+    with open("webhook_log.txt", "a") as f:
+        f.write(str(data) + "\n")
 
     return jsonify({"success": 1})
 

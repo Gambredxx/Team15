@@ -1,9 +1,15 @@
-from flask import Flask, render_template, request, redirect, url_for, session
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 import sqlite3
 import random
+import requests
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'  # Replace with a secure key
+
+EASYPAY_API_URL = "https://www.easypay.co.ug/api/"
+EASYPAY_USERNAME = "331d3b1290d90f31"      # Your client id
+EASYPAY_PASSWORD = "7377396e883e612a"      # Your secret key
+CALLBACK_URL = "https://ancient-thicket-16292.herokuapp.com/webhook"  # Your webhook URL
 
 # --------------------------
 # Database initialization
@@ -12,7 +18,7 @@ def init_db():
     with sqlite3.connect('database.db') as conn:
         c = conn.cursor()
 
-        # Payments table
+        # Update payments table to add reference and status
         c.execute('''
             CREATE TABLE IF NOT EXISTS payments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -21,11 +27,12 @@ def init_db():
                 phone TEXT NOT NULL,
                 amount INTEGER NOT NULL,
                 member_id TEXT,
+                reference TEXT UNIQUE,
+                status TEXT DEFAULT 'Pending',
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
 
-        # Referrals table
         c.execute('''
             CREATE TABLE IF NOT EXISTS referrals (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -35,7 +42,6 @@ def init_db():
             )
         ''')
 
-        # Earnings table
         c.execute('''
             CREATE TABLE IF NOT EXISTS earnings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,7 +52,6 @@ def init_db():
             )
         ''')
 
-        # Withdrawals table
         c.execute('''
             CREATE TABLE IF NOT EXISTS withdrawals (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -69,6 +74,7 @@ def generate_member_id():
 # --------------------------
 # Routes
 # --------------------------
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -82,23 +88,80 @@ def process_payment():
     name = request.form['name']
     nin = request.form['nin']
     phone = request.form['phone']
-    amount = request.form.get('amount', 15000)
+    amount = int(request.form.get('amount', 15000))
     member_id = generate_member_id()
 
-    # Store in payments
+    # Create unique reference combining member_id and random suffix
+    reference = f"{member_id}-{random.randint(1000,9999)}"
+
+    # Build payload for EasyPay mmdeposit
+    payload = {
+        "username": EASYPAY_USERNAME,
+        "password": EASYPAY_PASSWORD,
+        "action": "mmdeposit",
+        "amount": amount,
+        "currency": "UGX",
+        "phone": phone,
+        "reference": reference,
+        "reason": "Team15 membership payment"
+    }
+
+    # Call EasyPay API
+    try:
+        response = requests.post(EASYPAY_API_URL, json=payload, timeout=15)
+        data = response.json()
+    except Exception as e:
+        return f"Error contacting EasyPay API: {str(e)}", 500
+
+    if data.get("success") != 1:
+        err = data.get("errormsg", "Unknown error")
+        return f"Payment initiation failed: {err}", 400
+
+    # Save payment as pending in DB
     with sqlite3.connect('database.db') as conn:
         c = conn.cursor()
-        c.execute("INSERT INTO payments (name, nin, phone, amount, member_id) VALUES (?, ?, ?, ?, ?)",
-                  (name, nin, phone, amount, member_id))
+        c.execute(
+            "INSERT INTO payments (name, nin, phone, amount, member_id, reference, status) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (name, nin, phone, amount, member_id, reference, "Pending")
+        )
         conn.commit()
 
-    return redirect(url_for('thankyou', member_id=member_id, name=name))
+    # Show pending page telling user to complete payment on their phone
+    return render_template("payment_pending.html", name=name, member_id=member_id, reference=reference)
 
 @app.route('/thankyou')
 def thankyou():
     member_id = request.args.get('member_id')
     name = request.args.get('name')
     return render_template('thankyou.html', member_id=member_id, name=name)
+
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    data = request.json
+    print("✅ Webhook received:", data)
+
+    # Optional: Validate the secret if EasyPay sends it (not in docs, so skip or implement if provided)
+    # received_secret = data.get('secret')
+    # if received_secret != EASYPAY_PASSWORD:
+    #     return "Invalid secret", 403
+
+    reference = data.get("reference")
+    transaction_id = data.get("transactionId")
+    phone = data.get("phone")
+    amount = data.get("amount")
+
+    if not reference:
+        return "Missing reference", 400
+
+    # Update payment record status to Confirmed
+    with sqlite3.connect('database.db') as conn:
+        c = conn.cursor()
+        c.execute("UPDATE payments SET status = 'Confirmed' WHERE reference = ?", (reference,))
+        conn.commit()
+
+    print(f"Payment confirmed for reference: {reference}, transaction ID: {transaction_id}")
+
+    return jsonify({"success": 1})
 
 @app.route('/admin')
 def admin():
@@ -126,13 +189,13 @@ def login():
         member_id = request.form['member_id']
         with sqlite3.connect('database.db') as conn:
             c = conn.cursor()
-            c.execute("SELECT * FROM payments WHERE member_id = ?", (member_id,))
+            c.execute("SELECT * FROM payments WHERE member_id = ? AND status = 'Confirmed'", (member_id,))
             member = c.fetchone()
             if member:
                 session['member_id'] = member_id
                 return redirect(url_for('dashboard'))
             else:
-                error = "Invalid Member ID. Please check and try again."
+                error = "Invalid Member ID or payment not confirmed yet."
     return render_template('login.html', error=error)
 
 @app.route('/dashboard')
@@ -200,39 +263,6 @@ def reject_withdrawal(id):
 def logout():
     session.pop('member_id', None)
     return redirect(url_for('login'))
-
-# --------------------------
-# Webhook Endpoint
-# --------------------------
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    data = request.json
-    print("✅ Webhook received:", data)
-
-    # Validate secret
-    received_secret = data.get('secret')
-    if received_secret != '7377396e883e612a':
-        print("❌ Invalid secret!")
-        return "Invalid secret", 403
-
-    # Extract payment info
-    name = data.get('name', 'Unknown')
-    phone = data.get('phone', 'Unknown')
-    amount = data.get('amount', 0)
-    member_id = generate_member_id()
-
-    # Store payment record
-    with sqlite3.connect('database.db') as conn:
-        c = conn.cursor()
-        c.execute("INSERT INTO payments (name, nin, phone, amount, member_id) VALUES (?, ?, ?, ?, ?)",
-                  (name, "N/A", phone, amount, member_id))
-        conn.commit()
-
-    # Log to file
-    with open("webhook_log.txt", "a") as f:
-        f.write(str(data) + "\n")
-
-    return "Webhook processed", 200
 
 # --------------------------
 # Main entry

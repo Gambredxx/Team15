@@ -202,6 +202,39 @@ def logout():
     return redirect(url_for('login'))
 
 # --------------------------
+# Webhook Endpoint
+# --------------------------
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    data = request.json
+    print("✅ Webhook received:", data)
+
+    # Validate secret
+    received_secret = data.get('secret')
+    if received_secret != '7377396e883e612a':
+        print("❌ Invalid secret!")
+        return "Invalid secret", 403
+
+    # Extract payment info
+    name = data.get('name', 'Unknown')
+    phone = data.get('phone', 'Unknown')
+    amount = data.get('amount', 0)
+    member_id = generate_member_id()
+
+    # Store payment record
+    with sqlite3.connect('database.db') as conn:
+        c = conn.cursor()
+        c.execute("INSERT INTO payments (name, nin, phone, amount, member_id) VALUES (?, ?, ?, ?, ?)",
+                  (name, "N/A", phone, amount, member_id))
+        conn.commit()
+
+    # Log to file
+    with open("webhook_log.txt", "a") as f:
+        f.write(str(data) + "\n")
+
+    return "Webhook processed", 200
+
+# --------------------------
 # Main entry
 # --------------------------
 if __name__ == '__main__':

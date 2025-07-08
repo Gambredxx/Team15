@@ -2,14 +2,15 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 import sqlite3
 import random
 import requests
+import os
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key_here'  # Replace with a secure key
+app.secret_key = 'your_secret_key_here'
 
 EASYPAY_API_URL = "https://www.easypay.co.ug/api/"
-EASYPAY_USERNAME = "331d3b1290d90f31"      # Your client id
-EASYPAY_PASSWORD = "7377396e883e612a"      # Your secret key
-CALLBACK_URL = "https://ancient-thicket-16292.herokuapp.com/webhook"  # Your webhook URL
+EASYPAY_USERNAME = "331d3b1290d90f31"
+EASYPAY_PASSWORD = "7377396e883e612a"
+CALLBACK_URL = "https://ancient-thicket-16292.herokuapp.com/webhook"
 
 # --------------------------
 # Database initialization
@@ -18,7 +19,7 @@ def init_db():
     with sqlite3.connect('database.db') as conn:
         c = conn.cursor()
 
-        # Payments table
+        # Create table if not exists
         c.execute('''
             CREATE TABLE IF NOT EXISTS payments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -27,11 +28,16 @@ def init_db():
                 phone TEXT NOT NULL,
                 amount INTEGER NOT NULL,
                 member_id TEXT,
-                reference TEXT UNIQUE,
                 status TEXT DEFAULT 'Pending',
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+
+        # Add missing columns if not exist
+        try:
+            c.execute("ALTER TABLE payments ADD COLUMN reference TEXT UNIQUE")
+        except sqlite3.OperationalError:
+            pass  # column already exists
 
         c.execute('''
             CREATE TABLE IF NOT EXISTS referrals (
@@ -100,11 +106,8 @@ def process_payment():
     phone = normalize_phone(raw_phone)
     amount = int(request.form.get('amount', 15000))
     member_id = generate_member_id()
-
-    # Unique reference
     reference = f"{member_id}-{random.randint(1000,9999)}"
 
-    # Store initial record
     with sqlite3.connect('database.db') as conn:
         c = conn.cursor()
         c.execute(
@@ -125,26 +128,23 @@ def process_payment():
     }
 
     try:
-        # Wait up to 120 seconds
         response = requests.post(EASYPAY_API_URL, json=payload, timeout=120)
         data = response.json()
     except requests.exceptions.Timeout:
-        data = {"success": 0, "errormsg": "Request timed out waiting for EasyPay. Please complete on your phone."}
+        data = {"success": 0, "errormsg": "Request timed out. Complete payment on your phone."}
     except Exception as e:
         return f"Error contacting EasyPay API: {str(e)}", 500
 
-    # Log the response
     with open("easypay_response_log.txt", "a") as f:
         f.write(f"Ref {reference}: {data}\n")
 
-    # Always render pending
     return render_template(
         "payment_pending.html",
         name=name,
         member_id=member_id,
         reference=reference,
         easypay_status=data.get("success"),
-        easypay_message=data.get("errormsg", "Awaiting confirmation on your phone.")
+        easypay_message=data.get("errormsg", "Awaiting confirmation.")
     )
 
 @app.route('/payment_status/<reference>')
@@ -153,10 +153,7 @@ def payment_status(reference):
         c = conn.cursor()
         c.execute("SELECT status FROM payments WHERE reference = ?", (reference,))
         row = c.fetchone()
-        if row:
-            return jsonify({"status": row[0]})
-        else:
-            return jsonify({"status": "NotFound"}), 404
+        return jsonify({"status": row[0]}) if row else (jsonify({"status": "NotFound"}), 404)
 
 @app.route('/thankyou')
 def thankyou():
@@ -167,8 +164,6 @@ def thankyou():
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json
-    print("✅ Webhook received:", data)
-
     reference = data.get('reference')
     if not reference:
         return "Missing reference", 400

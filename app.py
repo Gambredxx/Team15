@@ -4,14 +4,19 @@ import random
 import requests
 import os
 from datetime import datetime
+import traceback
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-here')
 
 # EasyPay Configuration
+# WARNING: Hardcoding credentials is insecure. Replace with environment variables in production:
+# export EASYPAY_USERNAME="256705817050"
+# export EASYPAY_PASSWORD="159367"
+# export CALLBACK_URL="https://your-app.herokuapp.com/webhook"
 EASYPAY_API_URL = "https://www.easypay.co.ug/api/"
-EASYPAY_USERNAME = os.environ.get('EASYPAY_USERNAME', 'your-easypay-username')
-EASYPAY_PASSWORD = os.environ.get('EASYPAY_PASSWORD', 'your-easypay-password')
+EASYPAY_USERNAME = "ularker martine"
+EASYPAY_PASSWORD = "159367"
 CALLBACK_URL = os.environ.get('CALLBACK_URL', 'https://your-app.herokuapp.com/webhook')
 STANDARD_AMOUNT = 15000  # UGX
 
@@ -102,6 +107,9 @@ def process_payment():
         member_id = generate_member_id()
         reference = f"{member_id}-{random.randint(1000,9999)}"
 
+        # Log normalized phone for debugging
+        print(f"Normalized phone: {phone}")
+
         # Store in database
         with sqlite3.connect('database.db') as conn:
             c = conn.cursor()
@@ -120,11 +128,15 @@ def process_payment():
             "currency": "UGX",
             "phone": phone,
             "reference": reference,
-            "reason": "Team15 Membership",
-            "callback_url": CALLBACK_URL
+            "reason": "Team15 Membership"
+            # Removed callback_url as it's set in EasyPay dashboard per documentation
         }
 
+        # Debug logging
+        print(f"Sending payload to EasyPay: {payload}")
         response = requests.post(EASYPAY_API_URL, json=payload, timeout=30)
+        print(f"EasyPay response status: {response.status_code}")
+        print(f"EasyPay response body: {response.text}")
         response.raise_for_status()
         api_response = response.json()
 
@@ -140,6 +152,7 @@ def process_payment():
             )
         else:
             error_msg = api_response.get('errormsg', 'Payment initiation failed')
+            print(f"EasyPay error: {error_msg}")
             return render_template(
                 "payment_error.html",
                 error_message=error_msg,
@@ -147,8 +160,9 @@ def process_payment():
             )
 
     except requests.exceptions.RequestException as e:
-        error_msg = f"Payment service error: {str(e)}"
+        error_msg = f"Payment service error: {str(e)}\n{traceback.format_exc()}"
         log_transaction("N/A", error_msg)
+        print(error_msg)
         return render_template(
             "payment_error.html",
             error_message="Payment service unavailable. Please try again later.",
@@ -156,8 +170,9 @@ def process_payment():
         ), 503
 
     except Exception as e:
-        error_msg = f"System error: {str(e)}"
+        error_msg = f"System error: {str(e)}\n{traceback.format_exc()}"
         log_transaction("N/A", error_msg)
+        print(error_msg)
         return render_template(
             "payment_error.html",
             error_message="System error. Please try again later.",
@@ -189,14 +204,13 @@ def webhook():
     try:
         data = request.json
         reference = data.get('reference')
-        status = data.get('status', '').lower()
+        transaction_id = data.get('transactionId')
+        amount = data.get('amount')
+        phone = data.get('phone')
         
         if not reference:
+            print("Webhook error: Missing reference")
             return jsonify({"success": 0, "error": "Missing reference"}), 400
-
-        # Validate payment status
-        if status not in ['success', 'completed', 'confirmed']:
-            return jsonify({"success": 0, "error": "Invalid status"}), 400
 
         with sqlite3.connect('database.db') as conn:
             c = conn.cursor()
@@ -221,12 +235,13 @@ def webhook():
             conn.commit()
 
         log_transaction(reference, f"Payment confirmed via webhook: {data}")
-
+        print(f"Webhook processed: {data}")
         return jsonify({"success": 1})
 
     except Exception as e:
-        error_msg = f"Webhook error: {str(e)}"
+        error_msg = f"Webhook error: {str(e)}\n{traceback.format_exc()}"
         log_transaction("N/A", error_msg)
+        print(error_msg)
         return jsonify({"success": 0, "error": str(e)}), 500
 
 # Admin routes

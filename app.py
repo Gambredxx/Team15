@@ -147,6 +147,17 @@ def process_payment():
         easypay_message=data.get("errormsg", "Awaiting confirmation on your phone.")
     )
 
+@app.route('/payment_status/<reference>')
+def payment_status(reference):
+    with sqlite3.connect('database.db') as conn:
+        c = conn.cursor()
+        c.execute("SELECT status FROM payments WHERE reference = ?", (reference,))
+        row = c.fetchone()
+        if row:
+            return jsonify({"status": row[0]})
+        else:
+            return jsonify({"status": "NotFound"}), 404
+
 @app.route('/thankyou')
 def thankyou():
     member_id = request.args.get('member_id')
@@ -258,3 +269,4 @@ def logout():
 if __name__ == '__main__':
     init_db()
     app.run(debug=True)
+

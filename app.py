@@ -10,19 +10,29 @@ app.secret_key = 'your_secret_key_here'
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# ✅ Generate unique referral/member ID
-def generate_member_id():
-    with get_db_connection() as conn:
-        c = conn.cursor()
-        c.execute("SELECT member_id FROM users WHERE member_id LIKE 'T15-%'")
-        existing_ids = [int(row['member_id'].split('-')[1]) for row in c.fetchall() if row['member_id']]
-        next_id = max(existing_ids, default=1000) + 1
-    return f"T15-{next_id}"
-
 def get_db_connection():
     conn = sqlite3.connect('team15.db')
     conn.row_factory = sqlite3.Row
     return conn
+
+def generate_member_id(conn):
+    """
+    Generate unique member ID, reusing the passed DB connection
+    """
+    c = conn.cursor()
+    c.execute("SELECT member_id FROM users WHERE member_id LIKE 'T15-%'")
+    rows = c.fetchall()
+    existing_ids = []
+    for row in rows:
+        mid = row['member_id']
+        if mid and '-' in mid:
+            try:
+                num_part = int(mid.split('-')[1])
+                existing_ids.append(num_part)
+            except ValueError:
+                continue
+    next_id = max(existing_ids, default=1000) + 1
+    return f"T15-{next_id}"
 
 def admin_login_required(f):
     @wraps(f)
@@ -33,7 +43,6 @@ def admin_login_required(f):
         return f(*args, **kwargs)
     return wrapper
 
-# ✅ DB Setup
 def init_db():
     with sqlite3.connect('team15.db') as conn:
         c = conn.cursor()
@@ -102,7 +111,6 @@ def init_db():
 
 init_db()
 
-# ✅ Routes
 @app.route('/')
 def home():
     return render_template('index.html')
@@ -152,18 +160,22 @@ def register():
             with get_db_connection() as conn:
                 c = conn.cursor()
 
+                # Check if phone exists
                 c.execute("SELECT id FROM users WHERE phone = ?", (phone,))
                 if c.fetchone():
                     flash('Phone number already exists.', 'warning')
                     return redirect(url_for('register'))
 
+                # Check if referral_id exists
                 c.execute("SELECT id FROM users WHERE member_id = ?", (referral_id,))
                 referrer = c.fetchone()
                 if not referrer:
                     flash('Invalid referral ID.', 'warning')
                     return redirect(url_for('register'))
 
-                member_id = generate_member_id()
+                # Generate member ID using the same connection
+                member_id = generate_member_id(conn)
+
                 registration_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
                 c.execute('''INSERT INTO users 
@@ -177,9 +189,11 @@ def register():
                           (referrer['id'], user_id))
 
                 conn.commit()
+                flash('Registration successful! Please wait for activation.', 'success')
                 return redirect(url_for('make_money_instructions'))
 
-        except sqlite3.Error as e:
+        except Exception as e:
+            logger.exception("Registration error")
             flash('An error occurred during registration. Please try again.', 'danger')
             return redirect(url_for('register'))
 
@@ -369,6 +383,5 @@ def admin_process_withdrawal(withdrawal_id):
 def make_money_instructions():
     return render_template('make-money-instructions.html')
 
-# ✅ Run
 if __name__ == '__main__':
     app.run(debug=True)

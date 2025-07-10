@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Team15 Nation - How to Make Money</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"
+  />
+  <style>
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .animate-fadeInUp {
+      animation: fadeInUp 0.8s ease-out forwards;
+    }
+  </style>
+</head>
+<body class="bg-gray-100">
+  <nav class="bg-blue-800 text-white shadow-lg">
+    <div class="container mx-auto px-4">
+      <div class="flex justify-between items-center py-4">
+        <div class="flex items-center">
+          <img
+            src="/static/images/team15-logo.png"
+            alt="Team15 Logo"
+            class="h-12 w-12 mr-2"
+          />
+          <span class="text-xl font-bold">Team15 Dashboard</span>
+        </div>
+        <div class="flex items-center space-x-6">
+          <div class="flex items-center space-x-2">
+            <i class="fas fa-user-circle text-white text-2xl"></i>
+            <span>{{ user.fullname | default('User') }}</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <i class="fas fa-coins text-yellow-400"></i>
+            <span>UGX {{ user.balance | default(0) }}</span>
+          </div>
+          <a href="{{ url_for('admin_analytics') }}" class="text-gray-900 font-semibold hover:text-blue-600 mr-4">Analytics</a>
+          <a href="{{ url_for('logout') }}" class="text-white hover:underline">Logout</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center animate-fadeInUp">
+      🤑 How to Make Money on Team15 Nation
+    </h1>
+    <p class="text-gray-600 mb-8 text-center animate-fadeInUp">
+      Welcome to <strong>Team15 Nation</strong>! Here’s how to start earning money <strong>step by step</strong>:
+    </p>
+
+    <div class="grid grid-cols-1 gap-6 mb-8">
+      <!-- Register & Activate -->
+      <div class="bg-white rounded-xl shadow-md p-6 animate-fadeInUp">
+        <h2 class="text-xl font-bold text-blue-600 mb-4">
+          <i class="fas fa-check-circle mr-2"></i> 1. Register & Activate Your Account
+        </h2>
+        <ul class="list-disc list-inside text-gray-600 space-y-2">
+          <li>Join by paying <strong>UGX 15,000</strong> to activate your account.</li>
+          <li>After payment, your account will be <strong>verified manually by an admin</strong>.</li>
+          <li>Once approved, you’ll get full access to your earning dashboard.</li>
+        </ul>
+      </div>
+
+      <!-- Refer People & Earn -->
+      <div class="bg-white rounded-xl shadow-md p-6 animate-fadeInUp">
+        <h2 class="text-xl font-bold text-green-600 mb-4">
+          <i class="fas fa-users mr-2"></i> 2. Refer People & Earn
+        </h2>
+        <p class="text-gray-600 mb-4">
+          Invite your friends using your <strong>referral link or ID</strong>.
+        </p>
+        <p class="text-gray-600 mb-4">You earn:</p>
+        <ul class="list-disc list-inside text-gray-600 space-y-2">
+          <li><strong>UGX 5,000 Direct Bonus</strong> for every person who joins through you.</li>
+          <li>There’s no limit — the more you refer, the more you earn.</li>
+        </ul>
+      </div>
+
+      <!-- Earn Pairing Bonuses -->
+      <div class="bg-white rounded-xl shadow-md p-6 animate-fadeInUp">
+        <h2 class="text-xl font-bold text-purple-600 mb-4">
+          <i class="fas fa-handshake mr-2"></i> 3. Earn Pairing Bonuses
+        </h2>
+        <p class="text-gray-600 mb-4">
+          Team15 uses a <strong>binary system</strong> (left + right team).
+        </p>
+        <p class="text-gray-600 mb-4">You earn:</p>
+        <ul class="list-disc list-inside text-gray-600 space-y-2">
+          <li><strong>UGX 3,000</strong> for every <strong>pair</strong> of users (1 on your left + 1 on your right).</li>
+          <li>Even if you didn’t refer both — as long as they fall under your structure, you earn.</li>
+        </ul>
+      </div>
+
+      <!-- Earn Upline Bonuses -->
+      <div class="bg-white rounded-xl shadow-md p-6 animate-fadeInUp">
+        <h2 class="text-xl font-bold text-yellow-600 mb-4">
+          <i class="fas fa-level-up-alt mr-2"></i> 4. Earn Upline Bonuses
+        </h2>
+        <p class="text-gray-600 mb-4">
+          When your downlines refer others and earn, you also earn!
+        </p>
+        <ul class="list-disc list-inside text-gray-600 space-y-2">
+          <li>You earn a <strong>small bonus</strong> from the earnings of <strong>up to 3 levels</strong> of users below you.</li>
+          <li>This means your network makes money <strong>for you</strong> — passively.</li>
+        </ul>
+      </div>
+
+      <!-- Complete Simple Tasks Weekly -->
+      <div class="bg-white rounded-xl shadow-md p-6 animate-fadeInUp">
+        <h2 class="text-xl font-bold text-blue-600 mb-4">
+          <i class="fas fa-tasks mr-2"></i> 5. Complete Simple Tasks Weekly
+        </h2>
+        <p class="text-gray-600 mb-4">
+          You can also earn money weekly by doing small tasks like:
+        </p>
+        <ul class="list-disc list-inside text-gray-600 space-y-2">
+          <li>Watching videos 📺</li>
+          <li>Sharing social media posts 📲</li>
+          <li>Answering short surveys or quizzes ✍️</li>
+        </ul>
+        <p class="text-gray-600 mt-4">
+          Earn up to <strong>UGX 1,500 per week</strong> from tasks.
+        </p>
+      </div>
+
+      <!-- Withdraw Your Earnings -->
+      <div class="bg-white rounded-xl shadow-md p-6 animate-fadeInUp">
+        <h2 class="text-xl font-bold text-green-600 mb-4">
+          <i class="fas fa-money-bill-wave mr-2"></i> 6. Withdraw Your Earnings
+        </h2>
+        <ul class="list-disc list-inside text-gray-600 space-y-2">
+          <li>Once you reach the <strong>minimum withdrawal amount</strong>, request a p payout.</li>
+          <li>We pay through <strong>Mobile Money (MTN or Airtel)</strong> within 24–48 hours.</li>
+        </ul>
+      </div>
+
+      <!-- Example -->
+      <div class="bg-white rounded-xl shadow-md p-6 animate-fadeInUp">
+        <h2 class="text-xl font-bold text-purple-600 mb-4">
+          <i class="fas fa-lightbulb mr-2"></i> Example
+        </h2>
+        <p class="text-gray-600 mb-4">If you refer 4 people:</p>
+        <ul class="list-disc list-inside text-gray-600 space-y-2">
+          <li>4 x UGX 5,000 = UGX 20,000 (Direct bonus)</li>
+          <li>If 2 go left and 2 go right → 2 pairs = UGX 6,000</li>
+          <li>Task earnings = up to UGX 1,500</li>
+          <li>Plus upline bonuses if your referrals refer others</li>
+        </ul>
+      </div>
+
+      <!-- Rules to Remember -->
+      <div class="bg-white rounded-xl shadow-md p-6 animate-fadeInUp">
+        <h2 class="text-xl font-bold text-red-600 mb-4">
+          <i class="fas fa-exclamation-triangle mr-2"></i> Rules to Remember
+        </h2>
+        <ul class="list-disc list-inside text-gray-600 space-y-2">
+          <li>Only 1 account per user.</li>
+          <li>Payments must be verified by admins.</li>
+          <li>No fake referrals or payment proofs — violators will be blocked.</li>
+          <li>Weekly task earnings are capped at UGX 1,500 to encourage growth through referrals.</li>
+        </ul>
+      </div>
+
+      <!-- Pro Tips -->
+      <div class="bg-white rounded-xl shadow-md p-6 animate-fadeInUp">
+        <h2 class="text-xl font-bold text-yellow-600 mb-4">
+          <i class="fas fa-star mr-2"></i> Pro Tips
+        </h2>
+        <ul class="list-disc list-inside text-gray-600 space-y-2">
+          <li>Focus on inviting at least 2 people (1 left, 1 right) to start pairing.</li>
+          <li>Help your team grow — when they earn, you earn too.</li>
+          <li>Do your tasks every week for extra money.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <footer class="bg-gray-900 text-white py-10">
+    <div class="container mx-auto px-4 text-center">
+      <p class="text-yellow-200">© 2025 Team15 Nation. All rights reserved.</p>
+      <p class="mt-2 text-sm text-gray-400">
+        Contact support on Telegram: 
+        <a href="https://t.me/+oGPNtTq8aeNhZjc0" target="_blank" rel="noopener" class="underline hover:text-yellow-300">
+          @Team15Support
+        </a>
+      </p>
+    </div>
+  </footer>
+</body>
+</html>

@@ -115,11 +115,6 @@
           {{ user.direct_referrals | default(0) }}
         </div>
         <div class="text-gray-600">Direct Referrals</div>
-        <button
-          class="mt-4 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition"
-        >
-          Invite More
-        </button>
       </div>
     </div>
 
@@ -133,40 +128,22 @@
         </div>
       </div>
       <div class="bg-white rounded-xl shadow-md p-6 animate-fadeInUp">
-        <h2 class="text-xl font-bold mb-4 text-gray-800">Quick Actions</h2>
+        <h2 class="text-xl font-bold mb-4 text-gray-800">Micro Tasks</h2>
+        <div class="space-y-4">
+          <p class="text-gray-500">No tasks are available today</p>
+        </div>
+        <h2 class="text-xl font-bold mb-4 mt-6 text-gray-800">Referral Link</h2>
         <div class="space-y-4">
           <a
-            href="/instructions"
-            class="block bg-blue-100 hover:bg-blue-200 text-blue-800 p-4 rounded-lg transition flex items-center"
-          >
-            <i class="fas fa-book mr-3"></i>
-            <span>View Instructions</span>
-          </a>
-          <a
-            href="#"
+            href="/refer/{{ user.id }}"
             class="block bg-green-100 hover:bg-green-200 text-green-800 p-4 rounded-lg transition flex items-center"
           >
             <i class="fas fa-share-alt mr-3"></i>
-            <span>Share Referral Link</span>
-          </a>
-          <a
-            href="#"
-            class="block bg-purple-100 hover:bg-purple-200 text-purple-800 p-4 rounded-lg transition flex items-center"
-          >
-            <i class="fas fa-tasks mr-3"></i>
-            <span>Daily Micro-Tasks</span>
-          </a>
-          <a
-            href="#"
-            class="block bg-yellow-100 hover:bg-yellow-200 text-yellow-800 p-4 rounded-lg transition flex items-center"
-          >
-            <i class="fas fa-history mr-3"></i>
-            <span>Transaction History</span>
+            <span>Share Your Referral Link</span>
           </a>
         </div>
       </div>
     </div>
-
   </div>
 
   <footer class="bg-gray-900 text-white py-10">
@@ -175,6 +152,8 @@
       <p class="mt-2 text-sm text-gray-400">
         Contact support on Telegram: 
         <a href="https://t.me/+oGPNtTq8aeNhZjc0" target="_blank" rel="noopener" class="underline hover:text-yellow-300">
+          @ antecedentes
+
           @Team15Support
         </a>
       </p>

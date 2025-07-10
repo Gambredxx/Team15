@@ -1,4 +1,3 @@
-# 🧠 HEAD: All imports and configs stay the same
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from datetime import datetime
 from functools import wraps
@@ -178,7 +177,7 @@ def register():
                           (referrer['id'], user_id))
 
                 conn.commit()
-                return redirect(url_for('instructions'))
+                return redirect(url_for('make_money_instructions'))
 
         except sqlite3.Error as e:
             flash('An error occurred during registration. Please try again.', 'danger')
@@ -362,9 +361,9 @@ def admin_process_withdrawal(withdrawal_id):
     flash('Withdrawal processed successfully!', 'success')
     return redirect(url_for('admin_withdrawal_management'))
 
-@app.route('/instructions')
-def instructions():
-    return render_template('instructions.html')
+@app.route('/make-money-instructions')
+def make_money_instructions():
+    return render_template('make-money-instructions.html')
 
 # ✅ Run
 if __name__ == '__main__':

@@ -207,9 +207,13 @@ def user_dashboard():
         c.execute("SELECT SUM(amount) FROM withdrawals WHERE user_id = ? AND status = 'paid'", (user_id,))
         total_withdrawals = c.fetchone()[0] or 0
 
+        c.execute("SELECT COUNT(*) FROM referrals WHERE referrer_id = ?", (user_id,))
+        direct_referrals = c.fetchone()[0] or 0
+
         user = dict(user)
         user['total_earnings'] = total_earnings
         user['total_withdrawals'] = total_withdrawals
+        user['direct_referrals'] = direct_referrals
 
     return render_template('user/dashboard.html', user=user)
 

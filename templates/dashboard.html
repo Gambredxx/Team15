@@ -46,7 +46,7 @@
             <i class="fas fa-coins text-yellow-400"></i>
             <span>UGX {{ user.balance | default(0) }}</span>
           </div>
-          <a href="{{ url_for('admin_activate_user') }}" class="text-gray-900 font-semibold hover:text-blue-600 mr-4">Analytics</a>
+          <a href="{{ url_for('admin_analytics') }}" class="text-gray-900 font-semibold hover:text-blue-600 mr-4">Analytics</a>
           <a href="{{ url_for('logout') }}" class="text-white hover:underline">Logout</a>
         </div>
       </div>
@@ -134,22 +134,13 @@
         </div>
         <h2 class="text-xl font-bold mb-4 mt-6 text-gray-800">Referral Link</h2>
         <div class="space-y-4">
-          <div class="flex items-center space-x-2">
-            <input
-              type="text"
-              id="referral-link"
-              value="https://ancient-thicket-16292-78a025c47365.herokuapp.com/refer/{{ user.id }}"
-              readonly
-              class="w-full border border-gray-300 rounded px-3 py-2 bg-gray-50 text-gray-800 focus:outline-none"
-            />
-            <button
-              onclick="copyReferralLink()"
-              class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center"
-            >
-              <i class="fas fa-copy mr-2"></i> Copy Link
-            </button>
-          </div>
-          <p class="text-sm text-gray-500">Share this link to invite others and earn referrals!</p>
+          <a
+            href="/refer/{{ user.id }}"
+            class="block bg-green-100 hover:bg-green-200 text-green-800 p-4 rounded-lg transition flex items-center"
+          >
+            <i class="fas fa-share-alt mr-3"></i>
+            <span>Share Your Referral Link</span>
+          </a>
         </div>
       </div>
     </div>
@@ -161,25 +152,12 @@
       <p class="mt-2 text-sm text-gray-400">
         Contact support on Telegram: 
         <a href="https://t.me/+oGPNtTq8aeNhZjc0" target="_blank" rel="noopener" class="underline hover:text-yellow-300">
+          @ antecedentes
+
           @Team15Support
         </a>
       </p>
     </div>
   </footer>
-
-  <script>
-    function copyReferralLink() {
-      const linkInput = document.getElementById('referral-link');
-      linkInput.select();
-      navigator.clipboard.writeText(linkInput.value)
-        .then(() => {
-          alert('Referral link copied to clipboard!');
-        })
-        .catch(err => {
-          console.error('Failed to copy: ', err);
-          alert('Failed to copy the link. Please copy it manually.');
-        });
-    }
-  </script>
 </body>
 </html>

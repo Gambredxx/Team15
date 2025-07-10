@@ -23,14 +23,15 @@
     }
     @keyframes scroll {
       0% { transform: translateX(0); }
-      100% { transform: translateX(-100%); }
+      100% { transform: translateX(-50%); }
     }
     .animate-scroll {
-      animation: scroll 60s linear infinite;
+      animation: scroll 30s linear infinite;
     }
     .testimonial-container {
       display: flex;
       width: fit-content;
+      will-change: transform;
     }
     .faq-item {
       transition: all 0.3s ease;
@@ -47,16 +48,18 @@
       transition: all 0.3s ease;
     }
   </style>
+</head>
+<body>
 <header class="text-white py-12 relative">
-  <!-- background image -->
-  <div class="absolute inset-0 bg-cover bg-center z-[-1]" style="background-image: url('/static/images/your-header.jpg');"></div>
-  <!-- content -->
+  <div class="absolute inset-0 bg-cover bg-center z-[-1]" style="background-image: url('/static/images/your-header.jpg');">
+    <div class="absolute inset-0 bg-black opacity-50"></div>
+  </div>
   <div class="container mx-auto px-4 text-center animate-fadeInUp relative z-10">
     <div class="flex items-center justify-center mb-6">
       <img src="/static/images/team15-logo.png" alt="Team15 Logo" class="h-20 w-20 mr-4">
       <h1 class="text-7xl md:text-8xl font-extrabold text-yellow-400 drop-shadow-2xl">Team15</h1>
     </div>
-    <p class="text-xl text-yellow-100">Join the biggest community in Uganda and turn your 15,000UGX to over 1 million UGX!</p>
+    <p class="text-xl text-yellow-300">Join the biggest community in Uganda and turn your 15,000UGX to over 1 million UGX!</p>
   </div>
 </header>
 
@@ -81,16 +84,19 @@
         </div>
       </div>
     </div>
-  </section>
+</section>
 
-  <section class="py-16 bg-gradient-to-r from-blue-800 to-purple-700 text-white animate-fadeInUp">
+<section class="py-16 bg-gradient-to-r from-blue-800 to-purple-700 text-white animate-fadeInUp">
     <div class="container mx-auto px-4 text-center">
       <h2 class="text-4xl font-extrabold text-yellow-400 mb-10 drop-shadow-md">Ready to Start Earning?</h2>
-      <a href="/payment" class="mt-10 inline-block bg-green-400 text-black px-10 py-4 rounded-full text-xl font-semibold hover:bg-green-500 animate-pulse transition duration-300">Join Now</a>
+      <div class="flex flex-col sm:flex-row justify-center gap-4 mt-10">
+        <a href="/login" class="inline-block bg-green-400 text-black px-8 py-4 rounded-full text-lg font-semibold hover:bg-green-500 animate-pulse transition duration-300">Login</a>
+        <a href="/register" class="inline-block bg-green-400 text-black px-8 py-4 rounded-full text-lg font-semibold hover:bg-green-500 animate-pulse transition duration-300">Register</a>
+      </div>
     </div>
-  </section>
+</section>
 
-  <section class="py-16 bg-green-100 animate-fadeInUp">
+<section class="py-16 bg-green-100 animate-fadeInUp">
     <div class="container mx-auto px-4">
       <h2 class="text-4xl font-extrabold text-center text-yellow-400 mb-10 drop-shadow-md">What Our Members Say</h2>
       <div class="overflow-hidden">
@@ -100,6 +106,7 @@
             <p class="mt-4 font-semibold text-gray-900">Sarah K. (Kampala)</p>
           </div>
           <div class="min-w-[300px] p-6 bg-yellow-200 rounded-xl shadow-lg">
+            <p class="text-gray-700">"The micro-tasks are so easy, and the payouts are amazing!"</p>
             <p class="text-gray-700">"The micro-tasks are so easy, and the payouts are amazing!"</p>
             <p class="mt-4 font-semibold text-gray-900">James M. (Gulu)</p>
           </div>
@@ -135,19 +142,58 @@
             <p class="text-gray-700">"Earning while having fun—what's not to love?"</p>
             <p class="mt-4 font-semibold text-gray-900">Joseph R. (Fort Portal)</p>
           </div>
+          <div class="min-w-[300px] p-6 bg-yellow-200 rounded-xl shadow-lg">
+            <p class="text-gray-700">"Team15 changed my life! I earned UGX 50,000 in my first week!"</p>
+            <p class="mt-4 font-semibold text-gray-900">Sarah K. (Kampala)</p>
+          </div>
+          <div class="min-w-[300px] p-6 bg-yellow-200 rounded-xl shadow-lg">
+            <p class="text-gray-700">"The micro-tasks are so easy, and the payouts are amazing!"</p>
+            <p class="mt-4 font-semibold text-gray-900">James M. (Gulu)</p>
+          </div>
+          <div class="min-w-[300px] p-6 bg-yellow-200 rounded-xl shadow-lg">
+            <p class="text-gray-700">"I referred 5 friends and got UGX 25,000 instantly!"</p>
+            <p class="mt-4 font-semibold text-gray-900">Aisha N. (Mbarara)</p>
+          </div>
+          <div class="min-w-[300px] p-6 bg-yellow-200 rounded-xl shadow-lg">
+            <p class="text-gray-700">"Team15's community is supportive and inspiring!"</p>
+            <p class="mt-4 font-semibold text-gray-900">David O. (Jinja)</p>
+          </div>
+          <div class="min-w-[300px] p-6 bg-yellow-200 rounded-xl shadow-lg">
+            <p class="text-gray-700">"Pairing bonuses boosted my earnings significantly!"</p>
+            <p class="mt-4 font-semibold text-gray-900">Esther W. (Arua)</p>
+          </div>
+          <div class="min-w-[300px] p-6 bg-yellow-200 rounded-xl shadow-lg">
+            <p class="text-gray-700">"I love the daily tasks—quick and profitable!"</p>
+            <p class="mt-4 font-semibold text-gray-900">Michael T. (Masaka)</p>
+          </div>
+          <div class="min-w-[300px] p-6 bg-yellow-200 rounded-xl shadow-lg">
+            <p class="text-gray-700">"Joined a month ago and already hit UGX 200,000!"</p>
+            <p class="mt-4 font-semibold text-gray-900">Fatima Z. (Lira)</p>For <p class="mt-4 font-semibold text-gray-900">Fatima Z. (Lira)</p>
+          </div>
+          <div class="min-w-[300px] p-6 bg-yellow-200 rounded-xl shadow-lg">
+            <p class="text-gray-700">"The Telegram group keeps me motivated every day!"</p>
+            <p class="mt-4 font-semibold text-gray-900">Peter L. (Mbale)</p>
+          </div>
+          <div class="min-w-[300px] p-6 bg-yellow-200 rounded-xl shadow-lg">
+            <p class="text-gray-700">"Team15 is the best investment I've made!"</p>
+            <p class="mt-4 font-semibold text-gray-900">Grace P. (Soroti)</p>
+          </div>
+          <div class="min-w-[300px] p-6 bg-yellow-200 rounded-xl shadow-lg">
+            <p class="text-gray-700">"Earning while having fun—what's not to love?"</p>
+            <p class="mt-4 font-semibold text-gray-900">Joseph R. (Fort Portal)</p>
+          </div>
         </div>
       </div>
       <script>
         document.addEventListener('DOMContentLoaded', () => {
           const container = document.querySelector('.testimonial-container');
-          const clone = container.innerHTML;
-          container.innerHTML += clone;
           container.classList.add('animate-scroll');
         });
       </script>
-  </section>
+    </div>
+</section>
 
-  <section class="py-16 bg-white animate-fadeInUp">
+<section class="py-16 bg-white animate-fadeInUp">
     <div class="container mx-auto px-4">
       <h2 class="text-4xl font-extrabold text-center text-yellow-400 mb-10 drop-shadow-md">Frequently Asked Questions</h2>
       <div class="max-w-2xl mx-auto space-y-4">
@@ -189,12 +235,12 @@
         </div>
       </div>
     </div>
-  </section>
+</section>
 
-  <footer class="bg-gray-900 text-white py-10">
+<footer class="bg-gray-900 text-white py-10">
     <div class="container mx-auto px-4 text-center">
       <p class="text-yellow-200">© 2025 Team15 Nation. All rights reserved.</p>
     </div>
-  </footer>
+</footer>
 </body>
 </html>

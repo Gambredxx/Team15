@@ -1,7 +1,8 @@
+<!-- Save this as: templates/admin/dashboard.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
+  <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Team15 Nation - Admin Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
@@ -11,131 +12,183 @@
       from { opacity: 0; transform: translateY(20px); }
       to { opacity: 1; transform: translateY(0); }
     }
-    .animate-fadeInUp {
-      animation: fadeInUp 0.8s ease-out forwards;
+    .animate-fadeInUp { animation: fadeInUp 0.8s ease-out forwards; }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
     }
+    .animate-pulse { animation: pulse 2s infinite; }
   </style>
 </head>
-<body class="bg-gradient-to-b from-green-200 to-yellow-200 font-sans">
-  <header class="bg-gradient-to-r from-blue-800 to-purple-700 text-white py-10">
-    <div class="container mx-auto px-4 text-center animate-fadeInUp">
-      <div class="flex items-center justify-center mb-4">
-        <img src="/static/images/team15-logo.png" alt="Team15 Logo" class="h-16 w-16 mr-3"/>
-        <h1 class="text-5xl md:text-6xl font-extrabold text-yellow-400 drop-shadow-lg">Admin Dashboard</h1>
+<body>
+<header class="text-white py-12 relative">
+  <div class="absolute inset-0 bg-cover bg-center z-[-1]" style="background-image: url('/static/images/your-header.jpg');">
+    <div class="absolute inset-0 bg-black opacity-50"></div>
+  </div>
+  <div class="container mx-auto px-4 text-center animate-fadeInUp relative z-10">
+    <div class="flex items-center justify-center mb-6">
+      <img src="/static/images/team15-logo.png" alt="Team15 Logo" class="h-20 w-20 mr-4">
+      <h1 class="text-7xl md:text-8xl font-extrabold text-yellow-400 drop-shadow-2xl">Team15</h1>
+    </div>
+    <p class="text-xl text-yellow-300">Admin Dashboard - Manage Users & Withdrawals</p>
+  </div>
+</header>
+
+<nav class="bg-green-300 py-4">
+  <div class="container mx-auto px-4 flex justify-between items-center">
+    <div>
+      <a href="{{ url_for('admin_dashboard') }}" class="text-gray-900 font-semibold hover:text-blue-600 mr-4">Dashboard</a>
+    </div>
+    <a href="{{ url_for('logout') }}" class="text-gray-900 font-semibold hover:text-blue-600">Logout</a>
+  </div>
+</nav>
+
+<section class="py-16 bg-white animate-fadeInUp">
+  <div class="container mx-auto px-4">
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-6 max-w-4xl mx-auto">
+          {% for category, message in messages %}
+            <div class="p-4 mb-2 rounded 
+              {% if category == 'success' %}bg-green-100 text-green-700
+              {% elif category == 'danger' %}bg-red-100 text-red-700
+              {% else %}bg-yellow-100 text-yellow-700{% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <!-- Dashboard Stats -->
+    <div class="flex flex-wrap justify-center gap-6 mb-12">
+      <div class="bg-yellow-100 text-yellow-700 px-6 py-4 rounded-xl shadow">
+        Total Users: <strong>{{ users|length }}</strong>
+      </div>
+      <div class="bg-red-100 text-red-700 px-6 py-4 rounded-xl shadow">
+        Pending Activations: <strong>{{ users|selectattr('is_active', 'equalto', 0)|list|length }}</strong>
+      </div>
+      <div class="bg-blue-100 text-blue-700 px-6 py-4 rounded-xl shadow">
+        Pending Withdrawals: <strong>{{ withdrawals|selectattr('status', 'equalto', 'pending')|list|length }}</strong>
       </div>
     </div>
-  </header>
 
-  <section class="py-16 bg-white animate-fadeInUp">
-    <div class="container mx-auto px-4 space-y-10">
-
-      <!-- Payments -->
-      <div>
-        <h2 class="text-3xl font-extrabold text-yellow-400 mb-4 drop-shadow-md">Payment Records</h2>
-        <div class="overflow-x-auto">
-          <table class="w-full bg-green-300 rounded-xl shadow-xl">
-            <thead>
-              <tr class="bg-green-400 text-gray-900">
-                <th class="p-3">ID</th>
-                <th class="p-3">Name</th>
-                <th class="p-3">NIN</th>
-                <th class="p-3">Phone</th>
-                <th class="p-3">Amount</th>
-                <th class="p-3">Member ID</th>
-                <th class="p-3">Reference</th>
-                <th class="p-3">Status</th>
-                <th class="p-3">Joined</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for p in payments %}
-              <tr class="border-t border-green-200">
-                <td class="p-3">{{ p[0] }}</td>
-                <td class="p-3">{{ p[1] }}</td>
-                <td class="p-3">{{ p[2] }}</td>
-                <td class="p-3">{{ p[3] }}</td>
-                <td class="p-3">{{ p[4] }}</td>
-                <td class="p-3">{{ p[5] }}</td>
-                <td class="p-3">{{ p[6] }}</td>
-                <td class="p-3">{{ p[7] }}</td>
-                <td class="p-3">{{ p[8] }}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Referrals -->
-      <div>
-        <h2 class="text-3xl font-extrabold text-yellow-400 mb-4 drop-shadow-md">Referrals per Member</h2>
-        <div class="overflow-x-auto">
-          <table class="w-full bg-green-300 rounded-xl shadow-xl">
-            <thead>
-              <tr class="bg-green-400 text-gray-900">
-                <th class="p-3">Referrer Member ID</th>
-                <th class="p-3">Number of Referrals</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for r in referrals %}
-              <tr class="border-t border-green-200">
-                <td class="p-3">{{ r[0] }}</td>
-                <td class="p-3">{{ r[1] }}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <!-- Withdrawals -->
-      <div>
-        <h2 class="text-3xl font-extrabold text-yellow-400 mb-4 drop-shadow-md">Withdrawals</h2>
-        <div class="overflow-x-auto">
-          <table class="w-full bg-green-300 rounded-xl shadow-xl">
-            <thead>
-              <tr class="bg-green-400 text-gray-900">
-                <th class="p-3">ID</th>
-                <th class="p-3">Member ID</th>
-                <th class="p-3">Amount</th>
-                <th class="p-3">Status</th>
-                <th class="p-3">Requested On</th>
-                <th class="p-3">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for w in withdrawals %}
-              <tr class="border-t border-green-200">
-                <td class="p-3">{{ w[0] }}</td>
-                <td class="p-3">{{ w[1] }}</td>
-                <td class="p-3">{{ w[2] }}</td>
-                <td class="p-3">{{ w[3] }}</td>
-                <td class="p-3">{{ w[4] }}</td>
-                <td class="p-3 space-x-2">
-                  <a href="{{ url_for('approve_withdrawal', id=w[0]) }}"
-                     class="inline-block bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">
-                    Approve
+    <!-- User Management -->
+    <div class="max-w-6xl mx-auto bg-green-300 rounded-xl shadow-xl p-8 mb-8">
+      <h2 class="text-3xl font-extrabold text-center text-yellow-400 mb-6 drop-shadow-md">User Management</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-gray-900">
+          <thead class="bg-gray-200">
+            <tr>
+              <th class="px-4 py-3">Member ID</th>
+              <th class="px-4 py-3">Full Name</th>
+              <th class="px-4 py-3">Phone</th>
+              <th class="px-4 py-3">Referral</th>
+              <th class="px-4 py-3">Referrals</th>
+              <th class="px-4 py-3">Reg Date</th>
+              <th class="px-4 py-3">Balance</th>
+              <th class="px-4 py-3">Status</th>
+              <th class="px-4 py-3">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for user in users %}
+            <tr class="border-b border-gray-300 {% if not user.is_active %}bg-red-50{% endif %}">
+              <td class="px-4 py-3">{{ user.member_id }}</td>
+              <td class="px-4 py-3">{{ user.fullname }}</td>
+              <td class="px-4 py-3">{{ user.phone }}</td>
+              <td class="px-4 py-3">{{ user.referral_id }}</td>
+              <td class="px-4 py-3">{{ user.referrals_count }}</td>
+              <td class="px-4 py-3">{{ user.registration_date }}</td>
+              <td class="px-4 py-3">
+                {% if user.balance > 0 %}
+                  <span class="text-green-600">{{ user.balance }}</span>
+                {% else %}
+                  <span class="text-yellow-600">0</span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3">
+                {% if user.is_active %}
+                  <span class="text-green-600">Active</span>
+                {% else %}
+                  <span class="text-red-600">Inactive</span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3">
+                {% if not user.is_active %}
+                  <a href="{{ url_for('admin_activate_user', user_id=user.id) }}"
+                     class="bg-green-400 text-black px-4 py-2 rounded-full text-sm font-semibold hover:bg-green-500 animate-pulse transition duration-300">
+                    Activate
                   </a>
-                  <a href="{{ url_for('reject_withdrawal', id=w[0]) }}"
-                     class="inline-block bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">
-                    Reject
-                  </a>
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+                {% else %}
+                  <button disabled class="bg-gray-400 text-white px-4 py-2 rounded-full text-sm font-semibold cursor-not-allowed">Activated</button>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
-
     </div>
-  </section>
 
-  <footer class="bg-gray-900 text-white py-10 mt-10">
-    <div class="container mx-auto px-4 text-center">
-      <p class="text-yellow-200">© 2025 Team15 Nation. All rights reserved.</p>
+    <!-- Withdrawal Management -->
+    <div class="max-w-6xl mx-auto bg-green-300 rounded-xl shadow-xl p-8">
+      <h2 class="text-3xl font-extrabold text-center text-yellow-400 mb-6 drop-shadow-md">Withdrawal Management</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-gray-900">
+          <thead class="bg-gray-200">
+            <tr>
+              <th class="px-4 py-3">ID</th>
+              <th class="px-4 py-3">Member ID</th>
+              <th class="px-4 py-3">Name</th>
+              <th class="px-4 py-3">Amount</th>
+              <th class="px-4 py-3">Status</th>
+              <th class="px-4 py-3">Requested</th>
+              <th class="px-4 py-3">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for withdrawal in withdrawals %}
+            <tr class="border-b border-gray-300">
+              <td class="px-4 py-3">{{ withdrawal.id }}</td>
+              <td class="px-4 py-3">{{ withdrawal.member_id }}</td>
+              <td class="px-4 py-3">{{ withdrawal.fullname }}</td>
+              <td class="px-4 py-3">{{ withdrawal.amount }}</td>
+              <td class="px-4 py-3">
+                {% if withdrawal.status == 'paid' %}
+                  <span class="text-green-600">Paid</span>
+                {% else %}
+                  <span class="text-yellow-600">Pending</span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3">{{ withdrawal.request_date }}</td>
+              <td class="px-4 py-3">
+                {% if withdrawal.status == 'pending' %}
+                  <a href="{{ url_for('admin_process_withdrawal', withdrawal_id=withdrawal.id) }}"
+                     onclick="return confirm('Are you sure you want to mark this withdrawal as PAID?')"
+                     class="bg-blue-600 text-white px-4 py-2 rounded-full text-sm font-semibold hover:bg-blue-700 animate-pulse transition duration-300">
+                    Process
+                  </a>
+                {% else %}
+                  <button disabled class="bg-gray-400 text-white px-4 py-2 rounded-full text-sm font-semibold cursor-not-allowed">Processed</button>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
-  </footer>
+
+  </div>
+</section>
+
+<footer class="bg-gray-900 text-white py-10">
+  <div class="container mx-auto px-4 text-center">
+    <p class="text-yellow-200">© 2025 Team15 Nation. All rights reserved.</p>
+  </div>
+</footer>
 </body>
 </html>

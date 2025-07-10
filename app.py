@@ -1,377 +1,422 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
-import sqlite3
-import random
-import requests
-import os
+from flask import Flask, render_template, request, redirect, url_for, session, flash
 from datetime import datetime
-import traceback
+from functools import wraps
+import sqlite3
+import logging
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'your-secret-key-here')
+app.secret_key = 'your_secret_key_here'
 
-# EasyPay Configuration
-# WARNING: Hardcoding credentials is insecure. Replace with environment variables in production:
-# export EASYPAY_USERNAME="256705817050"
-# export EASYPAY_PASSWORD="159367"
-# export CALLBACK_URL="https://your-app.herokuapp.com/webhook"
-EASYPAY_API_URL = "https://www.easypay.co.ug/api/"
-EASYPAY_USERNAME = "ularker martine"
-EASYPAY_PASSWORD = "159367"
-CALLBACK_URL = os.environ.get('CALLBACK_URL', 'https://your-app.herokuapp.com/webhook')
-STANDARD_AMOUNT = 15000  # UGX
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
-# Database initialization
+# -----------------------------
+# Database Initialization
+# -----------------------------
 def init_db():
-    with sqlite3.connect('database.db') as conn:
+    with sqlite3.connect('team15.db') as conn:
         c = conn.cursor()
 
-        c.execute('''
-            CREATE TABLE IF NOT EXISTS payments (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                nin TEXT NOT NULL,
-                phone TEXT NOT NULL,
-                amount INTEGER NOT NULL,
-                member_id TEXT,
-                status TEXT DEFAULT 'Pending',
-                reference TEXT UNIQUE,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
+        # Users table
+        c.execute('''CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fullname TEXT NOT NULL,
+            phone TEXT NOT NULL UNIQUE,
+            referral_id TEXT NOT NULL,
+            password TEXT NOT NULL,
+            is_active INTEGER DEFAULT 0,
+            balance INTEGER DEFAULT 0,
+            member_id TEXT UNIQUE,
+            registration_date TEXT,
+            activated_by TEXT,
+            activation_date TEXT,
+            is_admin INTEGER DEFAULT 0
+        )''')
 
-        c.execute('''
-            CREATE TABLE IF NOT EXISTS referrals (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                referrer_member_id TEXT NOT NULL,
-                referred_member_id TEXT NOT NULL,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
+        # Referrals table
+        c.execute('''CREATE TABLE IF NOT EXISTS referrals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            referrer_id INTEGER,
+            referred_id INTEGER,
+            FOREIGN KEY(referrer_id) REFERENCES users(id),
+            FOREIGN KEY(referred_id) REFERENCES users(id)
+        )''')
 
-        c.execute('''
-            CREATE TABLE IF NOT EXISTS earnings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                member_id TEXT NOT NULL,
-                amount INTEGER NOT NULL,
-                type TEXT NOT NULL,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
+        # Payments table
+        c.execute('''CREATE TABLE IF NOT EXISTS payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            amount INTEGER,
+            payment_date TEXT,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )''')
 
-        c.execute('''
-            CREATE TABLE IF NOT EXISTS withdrawals (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                member_id TEXT NOT NULL,
-                amount INTEGER NOT NULL,
-                status TEXT DEFAULT 'Pending',
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
+        # Withdrawals table
+        c.execute('''CREATE TABLE IF NOT EXISTS withdrawals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            amount INTEGER,
+            status TEXT DEFAULT 'pending',
+            request_date TEXT,
+            processed_by INTEGER,
+            process_date TEXT,
+            FOREIGN KEY(user_id) REFERENCES users(id),
+            FOREIGN KEY(processed_by) REFERENCES users(id)
+        )''')
+
+        # Add default admin users
+        admins = [
+            {'phone': '0701618842', 'member_id': 'TM00001', 'password': 'admin123', 'balance': 13000},
+            {'phone': '0394005261', 'member_id': 'TM00002', 'password': 'admin123', 'balance': 0},
+            {'phone': '0762597375', 'member_id': 'TM00003', 'password': 'admin123', 'balance': 0}
+        ]
+
+        for admin in admins:
+            c.execute("SELECT id FROM users WHERE phone = ?", (admin['phone'],))
+            if not c.fetchone():
+                registration_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                c.execute('''INSERT INTO users 
+                    (fullname, phone, referral_id, password, is_active, 
+                     balance, member_id, registration_date, is_admin)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                    (f"Admin {admin['member_id']}", admin['phone'], 'SYSTEM', admin['password'], 1,
+                     admin['balance'], admin['member_id'], registration_date, 1))
 
         conn.commit()
 
-# Helper functions
+init_db()
+
+# -----------------------------
+# Helpers
+# -----------------------------
+def get_db_connection():
+    conn = sqlite3.connect('team15.db')
+    conn.row_factory = sqlite3.Row
+    return conn
+
 def generate_member_id():
-    return f"TM{random.randint(10000, 99999)}"
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) FROM users WHERE is_admin = 0")
+        count = c.fetchone()[0]
+    return f"T15-{1000 + count + 1}"
 
-def normalize_phone(phone):
-    phone = phone.strip().replace(" ", "").replace("-", "")
-    if phone.startswith("256"):
-        return phone
-    if phone.startswith("0"):
-        return "256" + phone[1:]
-    if phone.startswith(("7","3")):
-        return "256" + phone
-    return phone
+def admin_login_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if 'logged_in' not in session or not session.get('is_admin'):
+            flash('Admin access required', 'danger')
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return wrapper
 
-def log_transaction(reference, message):
-    with open("transaction_log.txt", "a") as f:
-        f.write(f"{datetime.now()} - {reference}: {message}\n")
-
+# -----------------------------
 # Routes
+# -----------------------------
 @app.route('/')
-def index():
+def home():
     return render_template('index.html')
 
-@app.route('/payment')
-def payment():
-    return render_template('payment.html')
-
-@app.route('/process_payment', methods=['POST'])
-def process_payment():
-    try:
-        # Get form data
-        name = request.form['name']
-        nin = request.form['nin']
-        phone = normalize_phone(request.form['phone'])
-        member_id = generate_member_id()
-        reference = f"{member_id}-{random.randint(1000,9999)}"
-
-        # Log normalized phone for debugging
-        print(f"Normalized phone: {phone}")
-
-        # Store in database
-        with sqlite3.connect('database.db') as conn:
-            c = conn.cursor()
-            c.execute(
-                "INSERT INTO payments (name, nin, phone, amount, member_id, reference) VALUES (?, ?, ?, ?, ?, ?)",
-                (name, nin, phone, STANDARD_AMOUNT, member_id, reference)
-            )
-            conn.commit()
-
-        # Initiate EasyPay payment
-        payload = {
-            "username": EASYPAY_USERNAME,
-            "password": EASYPAY_PASSWORD,
-            "action": "mmdeposit",
-            "amount": STANDARD_AMOUNT,
-            "currency": "UGX",
-            "phone": phone,
-            "reference": reference,
-            "reason": "Team15 Membership"
-            # Removed callback_url as it's set in EasyPay dashboard per documentation
-        }
-
-        # Debug logging
-        print(f"Sending payload to EasyPay: {payload}")
-        response = requests.post(EASYPAY_API_URL, json=payload, timeout=30)
-        print(f"EasyPay response status: {response.status_code}")
-        print(f"EasyPay response body: {response.text}")
-        response.raise_for_status()
-        api_response = response.json()
-
-        log_transaction(reference, f"Payment initiated: {api_response}")
-
-        if api_response.get('success') == 1:
-            return render_template(
-                "payment_pending.html",
-                name=name,
-                member_id=member_id,
-                reference=reference,
-                phone=phone[-9:]  # Show last 9 digits
-            )
-        else:
-            error_msg = api_response.get('errormsg', 'Payment initiation failed')
-            print(f"EasyPay error: {error_msg}")
-            return render_template(
-                "payment_error.html",
-                error_message=error_msg,
-                member_id=member_id
-            )
-
-    except requests.exceptions.RequestException as e:
-        error_msg = f"Payment service error: {str(e)}\n{traceback.format_exc()}"
-        log_transaction("N/A", error_msg)
-        print(error_msg)
-        return render_template(
-            "payment_error.html",
-            error_message="Payment service unavailable. Please try again later.",
-            member_id="N/A"
-        ), 503
-
-    except Exception as e:
-        error_msg = f"System error: {str(e)}\n{traceback.format_exc()}"
-        log_transaction("N/A", error_msg)
-        print(error_msg)
-        return render_template(
-            "payment_error.html",
-            error_message="System error. Please try again later.",
-            member_id="N/A"
-        ), 500
-
-@app.route('/payment_status/<reference>')
-def payment_status(reference):
-    with sqlite3.connect('database.db') as conn:
-        c = conn.cursor()
-        c.execute("SELECT status FROM payments WHERE reference = ?", (reference,))
-        row = c.fetchone()
-        return jsonify({"status": row[0]}) if row else (jsonify({"status": "NotFound"}), 404)
-
-@app.route('/thankyou')
-def thankyou():
-    member_id = request.args.get('member_id')
-    name = request.args.get('name')
-    
-    if not member_id or not name:
-        return redirect(url_for('payment'))
-    
-    return render_template('thankyou.html', 
-                         member_id=member_id, 
-                         name=name)
-
-@app.route('/webhook', methods=['POST'])
-def webhook():
-    try:
-        data = request.json
-        reference = data.get('reference')
-        transaction_id = data.get('transactionId')
-        amount = data.get('amount')
-        phone = data.get('phone')
-        
-        if not reference:
-            print("Webhook error: Missing reference")
-            return jsonify({"success": 0, "error": "Missing reference"}), 400
-
-        with sqlite3.connect('database.db') as conn:
-            c = conn.cursor()
-            
-            # Update payment status
-            c.execute(
-                "UPDATE payments SET status='Confirmed' WHERE reference = ?",
-                (reference,)
-            )
-            
-            # Get member details
-            c.execute(
-                "SELECT member_id, name FROM payments WHERE reference = ?",
-                (reference,)
-            )
-            payment = c.fetchone()
-            
-            if payment:
-                member_id, name = payment
-                # Add referral logic here if needed
-                
-            conn.commit()
-
-        log_transaction(reference, f"Payment confirmed via webhook: {data}")
-        print(f"Webhook processed: {data}")
-        return jsonify({"success": 1})
-
-    except Exception as e:
-        error_msg = f"Webhook error: {str(e)}\n{traceback.format_exc()}"
-        log_transaction("N/A", error_msg)
-        print(error_msg)
-        return jsonify({"success": 0, "error": str(e)}), 500
-
-# Admin routes
-@app.route('/admin')
-def admin():
-    if 'admin' not in session:
-        return redirect(url_for('login'))
-    
-    with sqlite3.connect('database.db') as conn:
-        c = conn.cursor()
-        c.execute("SELECT * FROM payments ORDER BY timestamp DESC")
-        payments = c.fetchall()
-        c.execute("SELECT * FROM withdrawals ORDER BY timestamp DESC")
-        withdrawals = c.fetchall()
-        
-    return render_template('admin.html', payments=payments, withdrawals=withdrawals)
-
-# Member routes
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        member_id = request.form['member_id']
-        
-        with sqlite3.connect('database.db') as conn:
+        phone = request.form['phone']
+        password = request.form['password']
+
+        with get_db_connection() as conn:
             c = conn.cursor()
-            c.execute(
-                "SELECT * FROM payments WHERE member_id = ? AND status = 'Confirmed'",
-                (member_id,)
-            )
-            member = c.fetchone()
-            
-            if member:
-                session['member_id'] = member_id
-                return redirect(url_for('dashboard'))
-            
-        return render_template('login.html', error="Invalid Member ID or payment not confirmed")
-    
+            c.execute("SELECT * FROM users WHERE phone = ? AND password = ?", (phone, password))
+            user = c.fetchone()
+
+            if user:
+                session['user_id'] = user['id']
+                session['logged_in'] = True
+                session['is_admin'] = user['is_admin']
+                session['member_id'] = user['member_id']
+
+                if user['is_admin']:
+                    return redirect(url_for('admin_dashboard'))
+                elif user['is_active']:
+                    return redirect(url_for('user_dashboard'))
+                else:
+                    flash('Your account is not yet activated.', 'warning')
+                    return redirect(url_for('login'))
+            else:
+                flash('Invalid credentials.', 'danger')
+
     return render_template('login.html')
 
-@app.route('/dashboard')
-def dashboard():
-    if 'member_id' not in session:
-        return redirect(url_for('login'))
-    
-    member_id = session['member_id']
-    
-    with sqlite3.connect('database.db') as conn:
-        c = conn.cursor()
-        c.execute("SELECT * FROM payments WHERE member_id = ?", (member_id,))
-        member = c.fetchone()
-        
-        c.execute("SELECT SUM(amount) FROM earnings WHERE member_id = ?", (member_id,))
-        total_earnings = c.fetchone()[0] or 0
-        
-        c.execute("SELECT COUNT(*) FROM referrals WHERE referrer_member_id = ?", (member_id,))
-        referral_count = c.fetchone()[0]
-        
-        c.execute("SELECT * FROM withdrawals WHERE member_id = ? ORDER BY timestamp DESC", (member_id,))
-        withdrawals = c.fetchall()
-    
-    return render_template(
-        'dashboard.html',
-        member=member,
-        total_earnings=total_earnings,
-        referral_count=referral_count,
-        withdrawals=withdrawals
-    )
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        logger.debug("Received POST request to /register with form data: %s", request.form)
+        # Check if all required fields are present
+        fullname = request.form.get('fullname')
+        phone = request.form.get('phone')
+        referral_id = request.form.get('referral_id')
+        password = request.form.get('password')
 
-@app.route('/request_withdrawal', methods=['POST'])
-def request_withdrawal():
-    if 'member_id' not in session:
-        return redirect(url_for('login'))
-    
-    try:
-        amount = int(request.form['amount'])
-        member_id = session['member_id']
-        
-        with sqlite3.connect('database.db') as conn:
-            c = conn.cursor()
-            c.execute(
-                "INSERT INTO withdrawals (member_id, amount) VALUES (?, ?)",
-                (member_id, amount)
-            )
-            conn.commit()
-            
-        return redirect(url_for('dashboard'))
-    
-    except Exception as e:
-        return render_template(
-            'dashboard.html',
-            error_message=f"Withdrawal request failed: {str(e)}"
-        ), 400
+        if not all([fullname, phone, referral_id, password]):
+            logger.error("Missing required fields: fullname=%s, phone=%s, referral_id=%s, password=%s", 
+                         fullname, phone, referral_id, bool(password))
+            flash('All fields are required.', 'danger')
+            return redirect(url_for('register'))
+
+        try:
+            with get_db_connection() as conn:
+                c = conn.cursor()
+
+                c.execute("SELECT id FROM users WHERE phone = ?", (phone,))
+                if c.fetchone():
+                    logger.warning("Duplicate phone number attempted: %s", phone)
+                    flash('Phone number already exists.', 'warning')
+                    return redirect(url_for('register'))
+
+                # Validate referral_id
+                c.execute("SELECT id FROM users WHERE member_id = ?", (referral_id,))
+                referrer = c.fetchone()
+                if not referrer:
+                    logger.warning("Invalid referral_id: %s", referral_id)
+                    flash('Invalid referral ID.', 'warning')
+                    return redirect(url_for('register'))
+
+                member_id = generate_member_id()
+                registration_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+                c.execute('''INSERT INTO users 
+                             (fullname, phone, referral_id, password, is_active, 
+                              balance, member_id, registration_date)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+                          (fullname, phone, referral_id, password, 0, 0, member_id, registration_date))
+                user_id = c.lastrowid
+
+                # Save referral
+                c.execute("INSERT INTO referrals (referrer_id, referred_id) VALUES (?, ?)", 
+                          (referrer['id'], user_id))
+
+                conn.commit()
+                logger.info("User registered successfully: phone=%s, member_id=%s", phone, member_id)
+                return redirect(url_for('instructions'))
+
+        except sqlite3.Error as e:
+            logger.error("Database error during registration: %s", str(e))
+            flash('An error occurred during registration. Please try again.', 'danger')
+            return redirect(url_for('register'))
+
+    logger.debug("Serving GET request for /register")
+    return render_template('register.html')
 
 @app.route('/logout')
 def logout():
-    session.pop('member_id', None)
-    return redirect(url_for('index'))
+    session.clear()
+    return redirect(url_for('home'))
 
-# Admin actions
-@app.route('/admin/approve_withdrawal/<int:id>')
-def approve_withdrawal(id):
-    if 'admin' not in session:
+@app.route('/dashboard')
+def user_dashboard():
+    if 'logged_in' not in session or session.get('is_admin'):
         return redirect(url_for('login'))
-    
-    with sqlite3.connect('database.db') as conn:
-        c = conn.cursor()
-        c.execute(
-            "UPDATE withdrawals SET status = 'Approved' WHERE id = ?",
-            (id,)
-        )
-        conn.commit()
-    
-    return redirect(url_for('admin'))
 
-@app.route('/admin/reject_withdrawal/<int:id>')
-def reject_withdrawal(id):
-    if 'admin' not in session:
+    user_id = session['user_id']
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+        user = c.fetchone()
+
+        c.execute("SELECT SUM(amount) FROM payments WHERE user_id = ?", (user_id,))
+        total_earnings = c.fetchone()[0] or 0
+
+        c.execute("SELECT SUM(amount) FROM withdrawals WHERE user_id = ? AND status = 'paid'", (user_id,))
+        total_withdrawals = c.fetchone()[0] or 0
+
+        user = dict(user)
+        user['total_earnings'] = total_earnings
+        user['total_withdrawals'] = total_withdrawals
+
+    return render_template('user/dashboard.html', user=user)
+
+@app.route('/withdraw', methods=['POST'])
+def withdraw():
+    if 'logged_in' not in session or session.get('is_admin'):
+        flash('Login required', 'danger')
         return redirect(url_for('login'))
-    
-    with sqlite3.connect('database.db') as conn:
-        c = conn.cursor()
-        c.execute(
-            "UPDATE withdrawals SET status = 'Rejected' WHERE id = ?",
-            (id,)
-        )
-        conn.commit()
-    
-    return redirect(url_for('admin'))
 
+    user_id = session['user_id']
+    amount = request.form.get('amount', type=int)
+    method = request.form.get('method')
+
+    if not amount or amount <= 0:
+        flash('Please enter a valid withdrawal amount.', 'warning')
+        return redirect(url_for('user_dashboard'))
+
+    if method not in ['mtn', 'airtel']:
+        flash('Invalid withdrawal method selected.', 'warning')
+        return redirect(url_for('user_dashboard'))
+
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT balance FROM users WHERE id = ?", (user_id,))
+        user = c.fetchone()
+
+        if not user:
+            flash('User not found.', 'danger')
+            return redirect(url_for('login'))
+
+        if amount > user['balance']:
+            flash('Insufficient balance for withdrawal.', 'warning')
+            return redirect(url_for('user_dashboard'))
+
+        # Deduct balance
+        new_balance = user['balance'] - amount
+        c.execute("UPDATE users SET balance = ? WHERE id = ?", (new_balance, user_id))
+
+        # Record withdrawal request
+        request_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        c.execute('''INSERT INTO withdrawals (user_id, amount, status, request_date)
+                     VALUES (?, ?, ?, ?)''', (user_id, amount, 'pending', request_date))
+
+        conn.commit()
+
+    flash('Withdrawal request submitted successfully!', 'success')
+    return redirect(url_for('user_dashboard'))
+
+@app.route('/admin/dashboard')
+@admin_login_required
+def admin_dashboard():
+    user_id = session.get('user_id')
+    user = None
+    if user_id:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+            user = c.fetchone()
+    return render_template('admin/dashboard.html', user=user)
+
+@app.route('/admin/user-management')
+@admin_login_required
+def admin_user_management():
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        c.execute('''SELECT u.*, COUNT(r.referred_id) as referrals_count
+                     FROM users u
+                     LEFT JOIN referrals r ON u.id = r.referrer_id
+                     GROUP BY u.id
+                     ORDER BY u.registration_date DESC''')
+        users = c.fetchall()
+
+    return render_template('admin/users.html', users=users)
+
+@app.route('/admin/payment-management')
+@admin_login_required
+def admin_payment_management():
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        c.execute('''SELECT p.*, u.member_id, u.fullname 
+                     FROM payments p
+                     JOIN users u ON p.user_id = u.id
+                     ORDER BY p.payment_date DESC''')
+        payments = c.fetchall()
+
+    return render_template('admin/payments.html', payments=payments)
+
+@app.route('/admin/withdrawal-management')
+@admin_login_required
+def admin_withdrawal_management():
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        c.execute('''SELECT w.*, u.member_id, u.fullname 
+                     FROM withdrawals w
+                     JOIN users u ON w.user_id = u.id
+                     ORDER BY w.request_date DESC''')
+        withdrawals = c.fetchall()
+
+    return render_template('admin/withdrawals.html', withdrawals=withdrawals)
+
+@app.route('/admin/activate-user/<int:user_id>')
+@admin_login_required
+def admin_activate_user(user_id):
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        activation_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        c.execute('''UPDATE users 
+                     SET is_active = 1, 
+                         activation_date = ?,
+                         activated_by = ?
+                     WHERE id = ?''',
+                 (activation_date, session['user_id'], user_id))
+        conn.commit()
+
+    flash('User activated successfully!', 'success')
+    return redirect(url_for('admin_user_management'))
+
+@app.route('/admin/process-withdrawal/<int:withdrawal_id>')
+@admin_login_required
+def admin_process_withdrawal(withdrawal_id):
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        process_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        c.execute('''UPDATE withdrawals 
+                     SET status = 'paid',
+                         processed_by = ?,
+                         process_date = ?
+                     WHERE id = ?''',
+                 (session['user_id'], process_date, withdrawal_id))
+        conn.commit()
+
+    flash('Withdrawal processed successfully!', 'success')
+    return redirect(url_for('admin_withdrawal_management'))
+
+@app.route('/instructions')
+def instructions():
+    return render_template('instructions.html')
+
+@app.route('/admin/analytics')
+@admin_login_required
+def admin_analytics():
+    with get_db_connection() as conn:
+        c = conn.cursor()
+
+        c.execute("SELECT COUNT(*) FROM users")
+        total_users = c.fetchone()[0]
+
+        c.execute("SELECT COUNT(*) FROM users WHERE is_active = 1")
+        active_users = c.fetchone()[0]
+
+        c.execute("SELECT COUNT(*) FROM users WHERE is_active = 0")
+        pending_users = c.fetchone()[0]
+
+        c.execute("SELECT SUM(balance) FROM users")
+        total_balance = c.fetchone()[0] or 0
+
+        c.execute("SELECT SUM(amount) FROM withdrawals WHERE status = 'paid'")
+        total_withdrawals = c.fetchone()[0] or 0
+
+        c.execute("SELECT SUM(amount) FROM withdrawals WHERE status = 'pending'")
+        pending_withdrawals = c.fetchone()[0] or 0
+
+        c.execute("SELECT COUNT(*) FROM referrals")
+        total_referrals = c.fetchone()[0]
+
+        c.execute("SELECT SUM(amount) FROM payments")
+        total_payments = c.fetchone()[0] or 0
+
+        c.execute("SELECT COUNT(*) FROM users WHERE is_admin = 1")
+        admin_count = c.fetchone()[0]
+
+    return render_template('admin/analytics.html', 
+        total_users=total_users,
+        active_users=active_users,
+        pending_users=pending_users,
+        total_balance=total_balance,
+        total_withdrawals=total_withdrawals,
+        pending_withdrawals=pending_withdrawals,
+        total_referrals=total_referrals,
+        total_payments=total_payments,
+        admin_count=admin_count
+    )
+
+# -----------------------------
+# Run the App
+# -----------------------------
 if __name__ == '__main__':
-    init_db()
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=os.environ.get('DEBUG', False))
+    app.run(debug=True)

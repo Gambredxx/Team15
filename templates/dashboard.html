@@ -1,88 +1,183 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Team15 Nation - Member Dashboard</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Team15 Nation - Dashboard</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"/>
+  <link
+    rel="stylesheet"
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"
+  />
   <style>
     @keyframes fadeInUp {
-      from { opacity: 0; transform: translateY(20px); }
-      to { opacity: 1; transform: translateY(0); }
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
     .animate-fadeInUp {
       animation: fadeInUp 0.8s ease-out forwards;
     }
   </style>
 </head>
-<body class="bg-gradient-to-b from-green-200 to-yellow-200 font-sans">
-  <header class="bg-gradient-to-r from-blue-800 to-purple-700 text-white py-10">
-    <div class="container mx-auto px-4 text-center animate-fadeInUp">
-      <div class="flex items-center justify-center mb-4">
-        <img src="/static/images/team15-logo.png" alt="Team15 Logo" class="h-16 w-16 mr-3"/>
-        <h1 class="text-4xl md:text-5xl font-extrabold text-yellow-400 drop-shadow-lg">Your Dashboard</h1>
-      </div>
-      <p class="text-lg text-yellow-200">Welcome, {{ member[1] }}!</p>
-    </div>
-  </header>
-
-  <section class="py-16 bg-white animate-fadeInUp">
-    <div class="container mx-auto px-4 max-w-2xl space-y-6">
-      <div class="bg-green-300 rounded-2xl shadow-2xl p-8">
-        <h2 class="text-2xl font-semibold text-gray-900 mb-4">Your Details</h2>
-        <ul class="text-gray-800 space-y-2">
-          <li><strong>Name:</strong> {{ member[1] }}</li>
-          <li><strong>National ID:</strong> {{ member[2] }}</li>
-          <li><strong>Phone:</strong> {{ member[3] }}</li>
-          <li><strong>Member ID:</strong> <span class="text-green-600 font-semibold">{{ member[5] }}</span></li>
-          <li><strong>Amount Paid:</strong> UGX {{ member[4] }}</li>
-          <li><strong>Joined:</strong> {{ member[6] }}</li>
-        </ul>
-      </div>
-
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div class="bg-yellow-100 p-4 rounded-xl text-center">
-          <p class="text-sm text-gray-600">Total Earnings</p>
-          <p class="text-2xl font-bold text-green-700">UGX {{ total_earnings }}</p>
+<body class="bg-gray-100">
+  <nav class="bg-blue-800 text-white shadow-lg">
+    <div class="container mx-auto px-4">
+      <div class="flex justify-between items-center py-4">
+        <div class="flex items-center">
+          <img
+            src="/static/images/team15-logo.png"
+            alt="Team15 Logo"
+            class="h-12 w-12 mr-2"
+          />
+          <span class="text-xl font-bold">Team15 Dashboard</span>
         </div>
-        <div class="bg-yellow-100 p-4 rounded-xl text-center">
-          <p class="text-sm text-gray-600">Referrals</p>
-          <p class="text-2xl font-bold text-green-700">{{ referral_count }}</p>
-        </div>
-        <div class="bg-yellow-100 p-4 rounded-xl text-center">
-          <p class="text-sm text-gray-600">Total Withdrawn</p>
-          <p class="text-2xl font-bold text-green-700">UGX {{ total_withdrawn }}</p>
-        </div>
-      </div>
-
-      <div class="bg-green-300 rounded-2xl shadow-2xl p-8">
-        <h2 class="text-2xl font-semibold text-gray-900 mb-4">Request Withdrawal</h2>
-        <form action="{{ url_for('request_withdrawal') }}" method="POST" class="space-y-4">
-          <div>
-            <label for="amount" class="block text-gray-800 font-semibold mb-1">Amount</label>
-            <input type="number" name="amount" id="amount" required min="1000"
-              class="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-600"/>
+        <div class="flex items-center space-x-6">
+          <div class="flex items-center space-x-2">
+            <i class="fas fa-user-circle text-white text-2xl"></i>
+            <span>{{ user.fullname | default('User') }}</span>
           </div>
-          <button type="submit"
-            class="w-full bg-green-500 text-white px-6 py-3 rounded-full font-semibold hover:bg-green-600 transition duration-300">
-            Submit Withdrawal Request
+          <div class="flex items-center space-x-2">
+            <i class="fas fa-coins text-yellow-400"></i>
+            <span>UGX {{ user.balance | default(0) }}</span>
+          </div>
+          <a href="{{ url_for('admin_analytics') }}" class="text-gray-900 font-semibold hover:text-blue-600 mr-4">Analytics</a>
+          <a href="{{ url_for('logout') }}" class="text-white hover:underline">Logout</a>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container mx-auto px-4 py-8">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div class="bg-white rounded-xl shadow-md p-6 text-center animate-fadeInUp">
+        <div class="text-3xl font-bold text-green-600 mb-2">
+          UGX {{ user.balance | default(0) }}
+        </div>
+        <div class="text-gray-600 mb-4">Available Balance</div>
+
+        <!-- Withdrawal form starts here -->
+        <form method="POST" action="/withdraw" class="space-y-4 text-left">
+          <label for="amount" class="block text-gray-700 font-semibold">Withdraw Amount (UGX)</label>
+          <input
+            type="number"
+            id="amount"
+            name="amount"
+            min="1000"
+            required
+            class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+            placeholder="Enter amount to withdraw"
+          />
+
+          <label for="method" class="block text-gray-700 font-semibold">Withdrawal Method</label>
+          <select
+            id="method"
+            name="method"
+            required
+            class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
+          >
+            <option value="">Select Method</option>
+            <option value="mtn">MTN Mobile Money</option>
+            <option value="airtel">Airtel Money</option>
+          </select>
+
+          <button
+            type="submit"
+            class="w-full bg-green-600 text-white font-bold py-2 rounded hover:bg-green-700 transition"
+          >
+            Withdraw
           </button>
         </form>
+        <!-- Withdrawal form ends here -->
       </div>
 
-      <div class="text-center">
-        <a href="{{ url_for('logout') }}"
-          class="inline-block bg-red-500 text-white px-6 py-3 rounded-full font-semibold hover:bg-red-600 transition duration-300">
-          Logout
-        </a>
+      <div class="bg-white rounded-xl shadow-md p-6 text-center animate-fadeInUp">
+        <div class="text-3xl font-bold text-blue-600 mb-2">
+          {{ user.total_earnings | default(0) }}
+        </div>
+        <div class="text-gray-600">Total Earnings</div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-md p-6 text-center animate-fadeInUp">
+        <div class="text-3xl font-bold text-red-600 mb-2">
+          {{ user.total_withdrawals | default(0) }}
+        </div>
+        <div class="text-gray-600">Total Withdrawals</div>
+      </div>
+
+      <div class="bg-white rounded-xl shadow-md p-6 text-center animate-fadeInUp">
+        <div class="text-3xl font-bold text-purple-600 mb-2">
+          {{ user.direct_referrals | default(0) }}
+        </div>
+        <div class="text-gray-600">Direct Referrals</div>
+        <button
+          class="mt-4 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition"
+        >
+          Invite More
+        </button>
       </div>
     </div>
-  </section>
 
-  <footer class="bg-gray-900 text-white py-10 mt-10">
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div class="md:col-span-2 bg-white rounded-xl shadow-md p-6 animate-fadeInUp">
+        <h2 class="text-xl font-bold mb-4 text-gray-800">Earnings Overview</h2>
+        <div
+          class="h-64 bg-gray-100 rounded-lg flex items-center justify-center"
+        >
+          <p class="text-gray-500">Earnings chart will be displayed here</p>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl shadow-md p-6 animate-fadeInUp">
+        <h2 class="text-xl font-bold mb-4 text-gray-800">Quick Actions</h2>
+        <div class="space-y-4">
+          <a
+            href="/instructions"
+            class="block bg-blue-100 hover:bg-blue-200 text-blue-800 p-4 rounded-lg transition flex items-center"
+          >
+            <i class="fas fa-book mr-3"></i>
+            <span>View Instructions</span>
+          </a>
+          <a
+            href="#"
+            class="block bg-green-100 hover:bg-green-200 text-green-800 p-4 rounded-lg transition flex items-center"
+          >
+            <i class="fas fa-share-alt mr-3"></i>
+            <span>Share Referral Link</span>
+          </a>
+          <a
+            href="#"
+            class="block bg-purple-100 hover:bg-purple-200 text-purple-800 p-4 rounded-lg transition flex items-center"
+          >
+            <i class="fas fa-tasks mr-3"></i>
+            <span>Daily Micro-Tasks</span>
+          </a>
+          <a
+            href="#"
+            class="block bg-yellow-100 hover:bg-yellow-200 text-yellow-800 p-4 rounded-lg transition flex items-center"
+          >
+            <i class="fas fa-history mr-3"></i>
+            <span>Transaction History</span>
+          </a>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <footer class="bg-gray-900 text-white py-10">
     <div class="container mx-auto px-4 text-center">
       <p class="text-yellow-200">© 2025 Team15 Nation. All rights reserved.</p>
+      <p class="mt-2 text-sm text-gray-400">
+        Contact support on Telegram: 
+        <a href="https://t.me/+oGPNtTq8aeNhZjc0" target="_blank" rel="noopener" class="underline hover:text-yellow-300">
+          @Team15Support
+        </a>
+      </p>
     </div>
   </footer>
 </body>

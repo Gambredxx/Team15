@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Team15 - Admin Analytics</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+
+<header class="bg-green-500 text-white py-6">
+  <div class="container mx-auto px-4">
+    <h1 class="text-3xl font-bold">Admin Analytics Dashboard</h1>
+  </div>
+</header>
+
+<main class="py-10">
+  <div class="container mx-auto px-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+
+    {% macro card(title, value, color) %}
+    <div class="bg-white rounded-lg shadow-md p-6 border-t-4 border-{{ color }}-500">
+      <h2 class="text-sm font-semibold text-gray-600 uppercase">{{ title }}</h2>
+      <p class="mt-2 text-3xl font-bold text-{{ color }}-600">{{ value }}</p>
+    </div>
+    {% endmacro %}
+
+    {{ card("Total Users", total_users, "blue") }}
+    {{ card("Active Users", active_users, "green") }}
+    {{ card("Pending Activations", pending_users, "red") }}
+    {{ card("Total Balance in System", total_balance, "yellow") }}
+    {{ card("Total Withdrawals (Paid)", total_withdrawals, "purple") }}
+    {{ card("Pending Withdrawals", pending_withdrawals, "orange") }}
+    {{ card("Total Referrals", total_referrals, "indigo") }}
+    {{ card("Total Payments", total_payments, "teal") }}
+    {{ card("Admin Accounts", admin_count, "gray") }}
+
+  </div>
+</main>
+
+<footer class="bg-gray-900 text-white text-center py-4 mt-10">
+  <p>&copy; 2025 Team15 Nation. All rights reserved.</p>
+</footer>
+
+</body>
+</html>

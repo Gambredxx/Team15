@@ -10,30 +10,22 @@ app.secret_key = 'your_secret_key_here'
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+# ✅ Database connection
 def get_db_connection():
     conn = sqlite3.connect('team15.db')
     conn.row_factory = sqlite3.Row
     return conn
 
-def generate_member_id(conn):
-    """
-    Generate unique member ID, reusing the passed DB connection
-    """
-    c = conn.cursor()
-    c.execute("SELECT member_id FROM users WHERE member_id LIKE 'T15-%'")
-    rows = c.fetchall()
-    existing_ids = []
-    for row in rows:
-        mid = row['member_id']
-        if mid and '-' in mid:
-            try:
-                num_part = int(mid.split('-')[1])
-                existing_ids.append(num_part)
-            except ValueError:
-                continue
-    next_id = max(existing_ids, default=1000) + 1
+# ✅ Generate unique member ID
+def generate_member_id():
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT member_id FROM users WHERE member_id LIKE 'T15-%'")
+        existing_ids = [int(row['member_id'].split('-')[1]) for row in c.fetchall() if row['member_id']]
+        next_id = max(existing_ids, default=1000) + 1
     return f"T15-{next_id}"
 
+# ✅ Admin login decorator
 def admin_login_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
@@ -43,6 +35,7 @@ def admin_login_required(f):
         return f(*args, **kwargs)
     return wrapper
 
+# ✅ Initialize DB
 def init_db():
     with sqlite3.connect('team15.db') as conn:
         c = conn.cursor()
@@ -111,6 +104,7 @@ def init_db():
 
 init_db()
 
+# ✅ Routes
 @app.route('/')
 def home():
     return render_template('index.html')
@@ -160,22 +154,18 @@ def register():
             with get_db_connection() as conn:
                 c = conn.cursor()
 
-                # Check if phone exists
                 c.execute("SELECT id FROM users WHERE phone = ?", (phone,))
                 if c.fetchone():
                     flash('Phone number already exists.', 'warning')
                     return redirect(url_for('register'))
 
-                # Check if referral_id exists
                 c.execute("SELECT id FROM users WHERE member_id = ?", (referral_id,))
                 referrer = c.fetchone()
                 if not referrer:
                     flash('Invalid referral ID.', 'warning')
                     return redirect(url_for('register'))
 
-                # Generate member ID using the same connection
-                member_id = generate_member_id(conn)
-
+                member_id = generate_member_id()
                 registration_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
                 c.execute('''INSERT INTO users 
@@ -189,15 +179,17 @@ def register():
                           (referrer['id'], user_id))
 
                 conn.commit()
-                flash('Registration successful! Please wait for activation.', 'success')
-                return redirect(url_for('make_money_instructions'))
+                return redirect(url_for('instructions'))
 
         except Exception as e:
-            logger.exception("Registration error")
-            flash('An error occurred during registration. Please try again.', 'danger')
+            flash('Registration failed: ' + str(e), 'danger')
             return redirect(url_for('register'))
 
     return render_template('register.html')
+
+@app.route('/instructions')
+def instructions():
+    return render_template('instructions.html')
 
 @app.route('/logout')
 def logout():
@@ -274,6 +266,7 @@ def withdraw():
     flash('Withdrawal request submitted successfully!', 'success')
     return redirect(url_for('user_dashboard'))
 
+# 🔐 Admin Panel Routes
 @app.route('/admin/dashboard')
 @admin_login_required
 def admin_dashboard():
@@ -379,9 +372,6 @@ def admin_process_withdrawal(withdrawal_id):
     flash('Withdrawal processed successfully!', 'success')
     return redirect(url_for('admin_withdrawal_management'))
 
-@app.route('/make-money-instructions')
-def make_money_instructions():
-    return render_template('make-money-instructions.html')
-
+# ✅ Run
 if __name__ == '__main__':
     app.run(debug=True)

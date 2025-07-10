@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Team15 Nation - User Management</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-4">
+
+  <div class="max-w-7xl mx-auto bg-white shadow-md rounded-lg p-6">
+    <h1 class="text-2xl font-bold mb-4 text-center text-blue-700">User Management</h1>
+
+    <div class="overflow-x-auto">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">#</th>
+            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">Name</th>
+            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">Phone</th>
+            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">Referral ID</th>
+            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">Member ID</th>
+            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">Balance</th>
+            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">Referrals</th>
+            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">Status</th>
+            <th class="px-4 py-2 text-left text-sm font-medium text-gray-600">Action</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          {% for user in users %}
+          <tr>
+            <td class="px-4 py-2 text-sm text-gray-700">{{ loop.index }}</td>
+            <td class="px-4 py-2 text-sm text-gray-700">{{ user.fullname }}</td>
+            <td class="px-4 py-2 text-sm text-gray-700">{{ user.phone }}</td>
+            <td class="px-4 py-2 text-sm text-gray-700">{{ user.referral_id }}</td>
+            <td class="px-4 py-2 text-sm text-gray-700">{{ user.member_id }}</td>
+            <td class="px-4 py-2 text-sm text-green-700 font-semibold">{{ user.balance }} UGX</td>
+            <td class="px-4 py-2 text-sm text-blue-600">{{ user.referrals_count }}</td>
+            <td class="px-4 py-2 text-sm">
+              {% if user.is_active %}
+                <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">Activated</span>
+              {% else %}
+                <span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs">Pending</span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-2 text-sm">
+              {% if not user.is_active %}
+                <a href="{{ url_for('admin_activate_user', user_id=user.id) }}"
+                   class="bg-blue-500 hover:bg-blue-700 text-white text-xs font-bold py-1 px-2 rounded">
+                  Approve
+                </a>
+              {% else %}
+                <span class="text-gray-400 text-xs">✓</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</body>
+</html>

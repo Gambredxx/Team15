@@ -1,3 +1,4 @@
+# 🧠 HEAD: All imports and configs stay the same
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from datetime import datetime
 from functools import wraps
@@ -7,18 +8,37 @@ import logging
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
 
-# Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# -----------------------------
-# Database Initialization
-# -----------------------------
+# ✅ Generate unique referral/member ID
+def generate_member_id():
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT member_id FROM users WHERE member_id LIKE 'T15-%'")
+        existing_ids = [int(row['member_id'].split('-')[1]) for row in c.fetchall() if row['member_id']]
+        next_id = max(existing_ids, default=1000) + 1
+    return f"T15-{next_id}"
+
+def get_db_connection():
+    conn = sqlite3.connect('team15.db')
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def admin_login_required(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        if 'logged_in' not in session or not session.get('is_admin'):
+            flash('Admin access required', 'danger')
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return wrapper
+
+# ✅ DB Setup
 def init_db():
     with sqlite3.connect('team15.db') as conn:
         c = conn.cursor()
 
-        # Users table
         c.execute('''CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             fullname TEXT NOT NULL,
@@ -34,7 +54,6 @@ def init_db():
             is_admin INTEGER DEFAULT 0
         )''')
 
-        # Referrals table
         c.execute('''CREATE TABLE IF NOT EXISTS referrals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             referrer_id INTEGER,
@@ -43,7 +62,6 @@ def init_db():
             FOREIGN KEY(referred_id) REFERENCES users(id)
         )''')
 
-        # Payments table
         c.execute('''CREATE TABLE IF NOT EXISTS payments (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
@@ -52,7 +70,6 @@ def init_db():
             FOREIGN KEY(user_id) REFERENCES users(id)
         )''')
 
-        # Withdrawals table
         c.execute('''CREATE TABLE IF NOT EXISTS withdrawals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
@@ -65,13 +82,12 @@ def init_db():
             FOREIGN KEY(processed_by) REFERENCES users(id)
         )''')
 
-        # Add default admin users
+        # Default admins
         admins = [
             {'phone': '0701618842', 'member_id': 'TM00001', 'password': 'admin123', 'balance': 13000},
             {'phone': '0394005261', 'member_id': 'TM00002', 'password': 'admin123', 'balance': 0},
             {'phone': '0762597375', 'member_id': 'TM00003', 'password': 'admin123', 'balance': 0}
         ]
-
         for admin in admins:
             c.execute("SELECT id FROM users WHERE phone = ?", (admin['phone'],))
             if not c.fetchone():
@@ -87,33 +103,7 @@ def init_db():
 
 init_db()
 
-# -----------------------------
-# Helpers
-# -----------------------------
-def get_db_connection():
-    conn = sqlite3.connect('team15.db')
-    conn.row_factory = sqlite3.Row
-    return conn
-
-def generate_member_id():
-    with get_db_connection() as conn:
-        c = conn.cursor()
-        c.execute("SELECT COUNT(*) FROM users WHERE is_admin = 0")
-        count = c.fetchone()[0]
-    return f"T15-{1000 + count + 1}"
-
-def admin_login_required(f):
-    @wraps(f)
-    def wrapper(*args, **kwargs):
-        if 'logged_in' not in session or not session.get('is_admin'):
-            flash('Admin access required', 'danger')
-            return redirect(url_for('login'))
-        return f(*args, **kwargs)
-    return wrapper
-
-# -----------------------------
-# Routes
-# -----------------------------
+# ✅ Routes
 @app.route('/')
 def home():
     return render_template('index.html')
@@ -150,16 +140,12 @@ def login():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        logger.debug("Received POST request to /register with form data: %s", request.form)
-        # Check if all required fields are present
         fullname = request.form.get('fullname')
         phone = request.form.get('phone')
         referral_id = request.form.get('referral_id')
         password = request.form.get('password')
 
         if not all([fullname, phone, referral_id, password]):
-            logger.error("Missing required fields: fullname=%s, phone=%s, referral_id=%s, password=%s", 
-                         fullname, phone, referral_id, bool(password))
             flash('All fields are required.', 'danger')
             return redirect(url_for('register'))
 
@@ -169,15 +155,12 @@ def register():
 
                 c.execute("SELECT id FROM users WHERE phone = ?", (phone,))
                 if c.fetchone():
-                    logger.warning("Duplicate phone number attempted: %s", phone)
                     flash('Phone number already exists.', 'warning')
                     return redirect(url_for('register'))
 
-                # Validate referral_id
                 c.execute("SELECT id FROM users WHERE member_id = ?", (referral_id,))
                 referrer = c.fetchone()
                 if not referrer:
-                    logger.warning("Invalid referral_id: %s", referral_id)
                     flash('Invalid referral ID.', 'warning')
                     return redirect(url_for('register'))
 
@@ -191,20 +174,16 @@ def register():
                           (fullname, phone, referral_id, password, 0, 0, member_id, registration_date))
                 user_id = c.lastrowid
 
-                # Save referral
                 c.execute("INSERT INTO referrals (referrer_id, referred_id) VALUES (?, ?)", 
                           (referrer['id'], user_id))
 
                 conn.commit()
-                logger.info("User registered successfully: phone=%s, member_id=%s", phone, member_id)
                 return redirect(url_for('instructions'))
 
         except sqlite3.Error as e:
-            logger.error("Database error during registration: %s", str(e))
             flash('An error occurred during registration. Please try again.', 'danger')
             return redirect(url_for('register'))
 
-    logger.debug("Serving GET request for /register")
     return render_template('register.html')
 
 @app.route('/logout')
@@ -266,11 +245,9 @@ def withdraw():
             flash('Insufficient balance for withdrawal.', 'warning')
             return redirect(url_for('user_dashboard'))
 
-        # Deduct balance
         new_balance = user['balance'] - amount
         c.execute("UPDATE users SET balance = ? WHERE id = ?", (new_balance, user_id))
 
-        # Record withdrawal request
         request_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         c.execute('''INSERT INTO withdrawals (user_id, amount, status, request_date)
                      VALUES (?, ?, ?, ?)''', (user_id, amount, 'pending', request_date))
@@ -283,14 +260,33 @@ def withdraw():
 @app.route('/admin/dashboard')
 @admin_login_required
 def admin_dashboard():
-    user_id = session.get('user_id')
-    user = None
-    if user_id:
-        with get_db_connection() as conn:
-            c = conn.cursor()
-            c.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-            user = c.fetchone()
-    return render_template('admin/dashboard.html', user=user)
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        c.execute('''SELECT u.*, COUNT(r.referred_id) as referrals_count
+                     FROM users u
+                     LEFT JOIN referrals r ON u.id = r.referrer_id
+                     GROUP BY u.id
+                     ORDER BY u.registration_date DESC''')
+        users = c.fetchall()
+
+        c.execute("SELECT COUNT(*) FROM users")
+        total_users = c.fetchone()[0]
+
+        c.execute("SELECT COUNT(*) FROM users WHERE is_active = 1")
+        active_users = c.fetchone()[0]
+
+        c.execute("SELECT COUNT(*) FROM users WHERE is_active = 0")
+        pending_users = c.fetchone()[0]
+
+        c.execute("SELECT SUM(balance) FROM users")
+        total_balance = c.fetchone()[0] or 0
+
+    return render_template('admin/dashboard.html',
+                           users=users,
+                           total_users=total_users,
+                           active_users=active_users,
+                           pending_users=pending_users,
+                           total_balance=total_balance)
 
 @app.route('/admin/user-management')
 @admin_login_required
@@ -370,53 +366,6 @@ def admin_process_withdrawal(withdrawal_id):
 def instructions():
     return render_template('instructions.html')
 
-@app.route('/admin/analytics')
-@admin_login_required
-def admin_analytics():
-    with get_db_connection() as conn:
-        c = conn.cursor()
-
-        c.execute("SELECT COUNT(*) FROM users")
-        total_users = c.fetchone()[0]
-
-        c.execute("SELECT COUNT(*) FROM users WHERE is_active = 1")
-        active_users = c.fetchone()[0]
-
-        c.execute("SELECT COUNT(*) FROM users WHERE is_active = 0")
-        pending_users = c.fetchone()[0]
-
-        c.execute("SELECT SUM(balance) FROM users")
-        total_balance = c.fetchone()[0] or 0
-
-        c.execute("SELECT SUM(amount) FROM withdrawals WHERE status = 'paid'")
-        total_withdrawals = c.fetchone()[0] or 0
-
-        c.execute("SELECT SUM(amount) FROM withdrawals WHERE status = 'pending'")
-        pending_withdrawals = c.fetchone()[0] or 0
-
-        c.execute("SELECT COUNT(*) FROM referrals")
-        total_referrals = c.fetchone()[0]
-
-        c.execute("SELECT SUM(amount) FROM payments")
-        total_payments = c.fetchone()[0] or 0
-
-        c.execute("SELECT COUNT(*) FROM users WHERE is_admin = 1")
-        admin_count = c.fetchone()[0]
-
-    return render_template('admin/analytics.html', 
-        total_users=total_users,
-        active_users=active_users,
-        pending_users=pending_users,
-        total_balance=total_balance,
-        total_withdrawals=total_withdrawals,
-        pending_withdrawals=pending_withdrawals,
-        total_referrals=total_referrals,
-        total_payments=total_payments,
-        admin_count=admin_count
-    )
-
-# -----------------------------
-# Run the App
-# -----------------------------
+# ✅ Run
 if __name__ == '__main__':
     app.run(debug=True)

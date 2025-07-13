@@ -412,5 +412,48 @@ def admin_process_withdrawal(withdrawal_id):
     flash('Withdrawal processed successfully!', 'success')
     return redirect(url_for('admin_withdrawal_management'))
 
+@app.route('/fix-payments-schema')
+@admin_login_required
+def fix_payments_schema():
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+
+            # Disable foreign key checks
+            c.execute("PRAGMA foreign_keys=off;")
+
+            # Rename existing table
+            c.execute("ALTER TABLE payments RENAME TO payments_old;")
+
+            # Recreate table without `phone` field
+            c.execute('''
+                CREATE TABLE payments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    amount INTEGER,
+                    payment_date TEXT,
+                    FOREIGN KEY(user_id) REFERENCES users(id)
+                )
+            ''')
+
+            # Copy data from old table, skip phone column
+            c.execute('''
+                INSERT INTO payments (id, user_id, amount, payment_date)
+                SELECT id, user_id, amount, payment_date FROM payments_old
+            ''')
+
+            # Drop old table
+            c.execute("DROP TABLE payments_old;")
+
+            # Re-enable foreign keys
+            c.execute("PRAGMA foreign_keys=on;")
+
+            conn.commit()
+        flash("✅ Payments table schema fixed successfully!", "success")
+    except Exception as e:
+        flash(f"❌ Failed to fix payments schema: {e}", "danger")
+    return redirect(url_for('admin_dashboard'))
+
+
 if __name__ == '__main__':
     app.run(debug=True)

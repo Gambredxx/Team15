@@ -3,7 +3,6 @@ from datetime import datetime
 from functools import wraps
 import sqlite3
 import logging
-import traceback
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
@@ -84,6 +83,7 @@ def init_db():
             FOREIGN KEY(processed_by) REFERENCES users(id)
         )''')
 
+        # Default admins
         admins = [
             {'phone': '0701618842', 'member_id': 'TM00001', 'password': 'admin123', 'balance': 13000},
             {'phone': '0394005261', 'member_id': 'TM00002', 'password': 'admin123', 'balance': 0},
@@ -103,6 +103,8 @@ def init_db():
         conn.commit()
 
 init_db()
+
+# ================== ROUTES ===================
 
 @app.route('/')
 def home():
@@ -265,6 +267,8 @@ def withdraw():
     flash('Withdrawal request submitted successfully!', 'success')
     return redirect(url_for('user_dashboard'))
 
+# ================= ADMIN ROUTES =================
+
 @app.route('/admin/dashboard')
 @admin_login_required
 def admin_dashboard():
@@ -344,6 +348,7 @@ def admin_activate_user(user_id):
             c = conn.cursor()
             activation_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
+            # Activate the user
             c.execute('''UPDATE users 
                          SET is_active = 1, 
                              activation_date = ?,
@@ -351,22 +356,30 @@ def admin_activate_user(user_id):
                          WHERE id = ?''',
                       (activation_date, session['user_id'], user_id))
 
-            c.execute('''SELECT referrer_id FROM referrals WHERE referred_id = ?''', (user_id,))
+            # Find the referrer
+            c.execute('''SELECT referrer_id 
+                         FROM referrals 
+                         WHERE referred_id = ?''', (user_id,))
             referrer = c.fetchone()
 
-            if referrer and referrer['referrer_id']:
+            if referrer:
+                # Add 5000 to referrer's balance
+                c.execute('''UPDATE users 
+                             SET balance = balance + 5000 
+                             WHERE id = ?''', (referrer['referrer_id'],))
+
+                # Log the referral bonus payment
                 payment_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                c.execute("UPDATE users SET balance = balance + 5000 WHERE id = ?", (referrer['referrer_id'],))
-                c.execute("INSERT INTO payments (user_id, amount, payment_date) VALUES (?, ?, ?)",
+                c.execute('''INSERT INTO payments (user_id, amount, payment_date)
+                             VALUES (?, ?, ?)''',
                           (referrer['referrer_id'], 5000, payment_date))
 
             conn.commit()
 
         flash('User activated successfully! Referrer received 5000 bonus.', 'success')
     except Exception as e:
-        logger.error("Activation error: %s", str(e))
-        traceback.print_exc()
-        flash('Activation failed: ' + str(e), 'danger')
+        logger.error(f"Activation failed: {e}")
+        flash(f'Activation failed: {e}', 'danger')
     return redirect(url_for('admin_user_management'))
 
 @app.route('/admin/deactivate-user/<int:user_id>')
@@ -374,6 +387,7 @@ def admin_activate_user(user_id):
 def admin_deactivate_user(user_id):
     with get_db_connection() as conn:
         c = conn.cursor()
+        # Check if user exists and is not an admin
         c.execute("SELECT is_admin FROM users WHERE id = ?", (user_id,))
         user = c.fetchone()
 
@@ -385,11 +399,13 @@ def admin_deactivate_user(user_id):
             flash('Cannot deactivate an admin account.', 'warning')
             return redirect(url_for('admin_user_management'))
 
+        # Deactivate the user
         c.execute('''UPDATE users 
                      SET is_active = 0,
                          activation_date = NULL,
                          activated_by = NULL
-                     WHERE id = ?''', (user_id,))
+                     WHERE id = ?''',
+                  (user_id,))
         conn.commit()
 
     flash('User deactivated successfully!', 'success')
@@ -411,6 +427,8 @@ def admin_process_withdrawal(withdrawal_id):
 
     flash('Withdrawal processed successfully!', 'success')
     return redirect(url_for('admin_withdrawal_management'))
+
+# =============== FIX PAYMENTS SCHEMA ROUTE ===============
 
 @app.route('/fix-payments-schema')
 @admin_login_required
@@ -454,6 +472,8 @@ def fix_payments_schema():
         flash(f"❌ Failed to fix payments schema: {e}", "danger")
     return redirect(url_for('admin_dashboard'))
 
+# =================== RUN APP =====================
 
 if __name__ == '__main__':
     app.run(debug=True)
+

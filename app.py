@@ -3,6 +3,7 @@ from datetime import datetime
 from functools import wraps
 import sqlite3
 import logging
+import traceback
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
@@ -10,11 +11,13 @@ app.secret_key = 'your_secret_key_here'
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+# ✅ Database connection
 def get_db_connection():
     conn = sqlite3.connect('team15.db')
     conn.row_factory = sqlite3.Row
     return conn
 
+# ✅ Generate unique member ID
 def generate_member_id():
     with get_db_connection() as conn:
         c = conn.cursor()
@@ -23,6 +26,7 @@ def generate_member_id():
         next_id = max(existing_ids, default=1000) + 1
     return f"T15-{next_id}"
 
+# ✅ Admin login decorator
 def admin_login_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
@@ -32,6 +36,7 @@ def admin_login_required(f):
         return f(*args, **kwargs)
     return wrapper
 
+# ✅ Initialize DB
 def init_db():
     with sqlite3.connect('team15.db') as conn:
         c = conn.cursor()
@@ -94,6 +99,7 @@ def init_db():
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
                     (f"Admin {admin['member_id']}", admin['phone'], 'SYSTEM', admin['password'], 1,
                      admin['balance'], admin['member_id'], registration_date, 1))
+
         conn.commit()
 
 init_db()
@@ -107,15 +113,18 @@ def login():
     if request.method == 'POST':
         phone = request.form['phone']
         password = request.form['password']
+
         with get_db_connection() as conn:
             c = conn.cursor()
             c.execute("SELECT * FROM users WHERE phone = ? AND password = ?", (phone, password))
             user = c.fetchone()
+
             if user:
                 session['user_id'] = user['id']
                 session['logged_in'] = True
                 session['is_admin'] = user['is_admin']
                 session['member_id'] = user['member_id']
+
                 if user['is_admin']:
                     return redirect(url_for('admin_dashboard'))
                 elif user['is_active']:
@@ -125,6 +134,7 @@ def login():
                     return redirect(url_for('login'))
             else:
                 flash('Invalid credentials.', 'danger')
+
     return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -142,10 +152,12 @@ def register():
         try:
             with get_db_connection() as conn:
                 c = conn.cursor()
+
                 c.execute("SELECT id FROM users WHERE phone = ?", (phone,))
                 if c.fetchone():
                     flash('Phone number already exists.', 'warning')
                     return redirect(url_for('register'))
+
                 c.execute("SELECT id FROM users WHERE member_id = ?", (referral_id,))
                 referrer = c.fetchone()
                 if not referrer:
@@ -161,13 +173,17 @@ def register():
                              VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
                           (fullname, phone, referral_id, password, 0, 0, member_id, registration_date))
                 user_id = c.lastrowid
+
                 c.execute("INSERT INTO referrals (referrer_id, referred_id) VALUES (?, ?)", 
                           (referrer['id'], user_id))
+
                 conn.commit()
                 return redirect(url_for('instructions'))
+
         except Exception as e:
             flash('Registration failed: ' + str(e), 'danger')
             return redirect(url_for('register'))
+
     return render_template('register.html')
 
 @app.route('/instructions')
@@ -189,10 +205,13 @@ def user_dashboard():
         c = conn.cursor()
         c.execute("SELECT * FROM users WHERE id = ?", (user_id,))
         user = c.fetchone()
+
         c.execute("SELECT SUM(amount) FROM payments WHERE user_id = ?", (user_id,))
         total_earnings = c.fetchone()[0] or 0
+
         c.execute("SELECT SUM(amount) FROM withdrawals WHERE user_id = ? AND status = 'paid'", (user_id,))
         total_withdrawals = c.fetchone()[0] or 0
+
         c.execute("SELECT COUNT(*) FROM referrals WHERE referrer_id = ?", (user_id,))
         direct_referrals = c.fetchone()[0] or 0
 
@@ -225,9 +244,11 @@ def withdraw():
         c = conn.cursor()
         c.execute("SELECT balance FROM users WHERE id = ?", (user_id,))
         user = c.fetchone()
+
         if not user:
             flash('User not found.', 'danger')
             return redirect(url_for('login'))
+
         if amount > user['balance']:
             flash('Insufficient balance for withdrawal.', 'warning')
             return redirect(url_for('user_dashboard'))
@@ -238,6 +259,7 @@ def withdraw():
         request_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         c.execute('''INSERT INTO withdrawals (user_id, amount, status, request_date)
                      VALUES (?, ?, ?, ?)''', (user_id, amount, 'pending', request_date))
+
         conn.commit()
 
     flash('Withdrawal request submitted successfully!', 'success')
@@ -285,6 +307,7 @@ def admin_user_management():
                      GROUP BY u.id
                      ORDER BY u.registration_date DESC''')
         users = c.fetchall()
+
     return render_template('admin/users.html', users=users)
 
 @app.route('/admin/payment-management')
@@ -297,6 +320,7 @@ def admin_payment_management():
                      JOIN users u ON p.user_id = u.id
                      ORDER BY p.payment_date DESC''')
         payments = c.fetchall()
+
     return render_template('admin/payments.html', payments=payments)
 
 @app.route('/admin/withdrawal-management')
@@ -309,48 +333,40 @@ def admin_withdrawal_management():
                      JOIN users u ON w.user_id = u.id
                      ORDER BY w.request_date DESC''')
         withdrawals = c.fetchall()
+
     return render_template('admin/withdrawals.html', withdrawals=withdrawals)
 
 @app.route('/admin/activate-user/<int:user_id>')
 @admin_login_required
 def admin_activate_user(user_id):
-    with get_db_connection() as conn:
-        c = conn.cursor()
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            activation_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        c.execute("SELECT * FROM users WHERE id = ?", (user_id,))
-        user = c.fetchone()
-        if not user:
-            flash('User not found.', 'danger')
-            return redirect(url_for('admin_user_management'))
-
-        activation_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        activated_by = session.get('user_id')
-
-        c.execute('''UPDATE users 
-                     SET is_active = 1, 
-                         activation_date = ?,
-                         activated_by = ?
-                     WHERE id = ?''',
-                 (activation_date, activated_by, user_id))
-
-        c.execute('''SELECT referrer_id 
-                     FROM referrals 
-                     WHERE referred_id = ?''', (user_id,))
-        referrer = c.fetchone()
-
-        if referrer:
-            referrer_id = referrer[0]
             c.execute('''UPDATE users 
-                         SET balance = balance + 5000 
-                         WHERE id = ?''', (referrer_id,))
-            payment_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            c.execute('''INSERT INTO payments (user_id, amount, payment_date)
-                         VALUES (?, ?, ?)''',
-                     (referrer_id, 5000, payment_date))
+                         SET is_active = 1, 
+                             activation_date = ?,
+                             activated_by = ?
+                         WHERE id = ?''',
+                      (activation_date, session['user_id'], user_id))
 
-        conn.commit()
+            c.execute('''SELECT referrer_id FROM referrals WHERE referred_id = ?''', (user_id,))
+            referrer = c.fetchone()
 
-    flash('User activated successfully! Referrer received 5000 bonus.', 'success')
+            if referrer and referrer['referrer_id']:
+                payment_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                c.execute("UPDATE users SET balance = balance + 5000 WHERE id = ?", (referrer['referrer_id'],))
+                c.execute("INSERT INTO payments (user_id, amount, payment_date) VALUES (?, ?, ?)",
+                          (referrer['referrer_id'], 5000, payment_date))
+
+            conn.commit()
+
+        flash('User activated successfully! Referrer received 5000 bonus.', 'success')
+    except Exception as e:
+        logger.error("Activation error: %s", str(e))
+        traceback.print_exc()
+        flash('Activation failed: ' + str(e), 'danger')
     return redirect(url_for('admin_user_management'))
 
 @app.route('/admin/deactivate-user/<int:user_id>')
@@ -360,18 +376,20 @@ def admin_deactivate_user(user_id):
         c = conn.cursor()
         c.execute("SELECT is_admin FROM users WHERE id = ?", (user_id,))
         user = c.fetchone()
+
         if not user:
             flash('User not found.', 'danger')
             return redirect(url_for('admin_user_management'))
+
         if user['is_admin']:
             flash('Cannot deactivate an admin account.', 'warning')
             return redirect(url_for('admin_user_management'))
+
         c.execute('''UPDATE users 
                      SET is_active = 0,
                          activation_date = NULL,
                          activated_by = NULL
-                     WHERE id = ?''',
-                 (user_id,))
+                     WHERE id = ?''', (user_id,))
         conn.commit()
 
     flash('User deactivated successfully!', 'success')
@@ -388,7 +406,7 @@ def admin_process_withdrawal(withdrawal_id):
                          processed_by = ?,
                          process_date = ?
                      WHERE id = ?''',
-                 (session['user_id'], process_date, withdrawal_id))
+                  (session['user_id'], process_date, withdrawal_id))
         conn.commit()
 
     flash('Withdrawal processed successfully!', 'success')

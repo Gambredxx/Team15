@@ -29,22 +29,22 @@
           {% for user in users %}
           <tr>
             <td class="px-4 py-2 text-sm text-gray-700">{{ loop.index }}</td>
-            <td class="px-4 py-2 text-sm text-gray-700">{{ user.fullname }}</td>
-            <td class="px-4 py-2 text-sm text-gray-700">{{ user.phone }}</td>
-            <td class="px-4 py-2 text-sm text-gray-700">{{ user.referral_id }}</td>
-            <td class="px-4 py-2 text-sm text-gray-700">{{ user.member_id }}</td>
-            <td class="px-4 py-2 text-sm text-green-700 font-semibold">{{ user.balance }} UGX</td>
-            <td class="px-4 py-2 text-sm text-blue-600">{{ user.referrals_count }}</td>
+            <td class="px-4 py-2 text-sm text-gray-700">{{ user['fullname'] }}</td>
+            <td class="px-4 py-2 text-sm text-gray-700">{{ user['phone'] }}</td>
+            <td class="px-4 py-2 text-sm text-gray-700">{{ user['referral_id'] }}</td>
+            <td class="px-4 py-2 text-sm text-gray-700">{{ user['member_id'] }}</td>
+            <td class="px-4 py-2 text-sm text-green-700 font-semibold">{{ user['balance'] }} UGX</td>
+            <td class="px-4 py-2 text-sm text-blue-600">{{ user['referrals_count'] }}</td>
             <td class="px-4 py-2 text-sm">
-              {% if user.is_active %}
+              {% if user['is_active'] %}
                 <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">Activated</span>
               {% else %}
                 <span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs">Pending</span>
               {% endif %}
             </td>
             <td class="px-4 py-2 text-sm">
-              {% if not user.is_active %}
-                <a href="{{ url_for('admin_activate_user', user_id=user.id) }}"
+              {% if not user['is_active'] %}
+                <a href="{{ url_for('admin_activate_user', user_id=user['id']) }}"
                    class="bg-blue-500 hover:bg-blue-700 text-white text-xs font-bold py-1 px-2 rounded">
                   Approve
                 </a>

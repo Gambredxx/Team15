@@ -344,15 +344,65 @@ def admin_activate_user(user_id):
     with get_db_connection() as conn:
         c = conn.cursor()
         activation_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # Activate the user
         c.execute('''UPDATE users 
                      SET is_active = 1, 
                          activation_date = ?,
                          activated_by = ?
                      WHERE id = ?''',
                  (activation_date, session['user_id'], user_id))
+        
+        # Find the referrer
+        c.execute('''SELECT referrer_id 
+                     FROM referrals 
+                     WHERE referred_id = ?''', (user_id,))
+        referrer = c.fetchone()
+        
+        if referrer:
+            # Add 5000 to referrer's balance
+            c.execute('''UPDATE users 
+                         SET balance = balance + 5000 
+                         WHERE id = ?''', (referrer['referrer_id'],))
+            
+            # Log the referral bonus payment
+            payment_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            c.execute('''INSERT INTO payments (user_id, amount, payment_date)
+                         VALUES (?, ?, ?)''',
+                     (referrer['referrer_id'], 5000, payment_date))
+
         conn.commit()
 
-    flash('User activated successfully!', 'success')
+    flash('User activated successfully! Referrer received 5000 bonus.', 'success')
+    return redirect(url_for('admin_user_management'))
+
+@app.route('/admin/deactivate-user/<int:user_id>')
+@admin_login_required
+def admin_deactivate_user(user_id):
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        # Check if user exists and is not an admin
+        c.execute("SELECT is_admin FROM users WHERE id = ?", (user_id,))
+        user = c.fetchone()
+        
+        if not user:
+            flash('User not found.', 'danger')
+            return redirect(url_for('admin_user_management'))
+            
+        if user['is_admin']:
+            flash('Cannot deactivate an admin account.', 'warning')
+            return redirect(url_for('admin_user_management'))
+            
+        # Deactivate the user
+        c.execute('''UPDATE users 
+                     SET is_active = 0,
+                         activation_date = NULL,
+                         activated_by = NULL
+                     WHERE id = ?''',
+                 (user_id,))
+        conn.commit()
+
+    flash('User deactivated successfully!', 'success')
     return redirect(url_for('admin_user_management'))
 
 @app.route('/admin/process-withdrawal/<int:withdrawal_id>')

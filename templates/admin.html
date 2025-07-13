@@ -1,5 +1,5 @@
 <!-- Save this as: templates/admin/dashboard.html -->
-<!DOCTYPE html>
+<!<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -117,13 +117,17 @@
                 {% endif %}
               </td>
               <td class="px-4 py-3">
-                {% if not user.is_active %}
+                {% if user.is_active %}
+                  <a href="{{ url_for('admin_deactivate_user', user_id=user.id) }}"
+                     onclick="return confirm('Are you sure you want to deactivate this user?')"
+                     class="bg-yellow-400 text-black px-4 py-2 rounded-full text-sm font-semibold hover:bg-yellow-500 animate-pulse transition duration-300">
+                    Deactivate
+                  </a>
+                {% else %}
                   <a href="{{ url_for('admin_activate_user', user_id=user.id) }}"
                      class="bg-green-400 text-black px-4 py-2 rounded-full text-sm font-semibold hover:bg-green-500 animate-pulse transition duration-300">
                     Activate
                   </a>
-                {% else %}
-                  <button disabled class="bg-gray-400 text-white px-4 py-2 rounded-full text-sm font-semibold cursor-not-allowed">Activated</button>
                 {% endif %}
               </td>
             </tr>

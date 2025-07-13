@@ -1,5 +1,4 @@
-<!-- Save this as: templates/admin/dashboard.html -->
-<!<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -90,7 +89,8 @@
               <th class="px-4 py-3">Reg Date</th>
               <th class="px-4 py-3">Balance</th>
               <th class="px-4 py-3">Status</th>
-              <th class="px-4 py-3">Action</th>
+              <th class="px-4 py-3">Activate</th>
+              <th class="px-4 py-3">Deactivate</th>
             </tr>
           </thead>
           <tbody>
@@ -117,17 +117,24 @@
                 {% endif %}
               </td>
               <td class="px-4 py-3">
-                {% if user.is_active %}
-                  <a href="{{ url_for('admin_deactivate_user', user_id=user.id) }}"
-                     onclick="return confirm('Are you sure you want to deactivate this user?')"
-                     class="bg-yellow-400 text-black px-4 py-2 rounded-full text-sm font-semibold hover:bg-yellow-500 animate-pulse transition duration-300">
-                    Deactivate
-                  </a>
-                {% else %}
+                {% if not user.is_active %}
                   <a href="{{ url_for('admin_activate_user', user_id=user.id) }}"
                      class="bg-green-400 text-black px-4 py-2 rounded-full text-sm font-semibold hover:bg-green-500 animate-pulse transition duration-300">
                     Activate
                   </a>
+                {% else %}
+                  <span>-</span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3">
+                {% if user.is_active %}
+                  <a href="{{ url_for('admin_deactivate_user', user_id=user.id) }}"
+                     onclick="return confirm('Are you sure you want to deactivate this user?')"
+                     class="bg-red-500 text-white px-4 py-2 rounded-full text-sm font-semibold hover:bg-red-600 animate-pulse transition duration-300">
+                    Deactivate
+                  </a>
+                {% else %}
+                  <span>-</span>
                 {% endif %}
               </td>
             </tr>

@@ -227,19 +227,22 @@ def initiate_payment():
         return redirect(url_for('login'))
 
     user_id = session['user_id']
+
     if request.method == 'POST':
         amount = request.form.get('amount', type=int)
         phone = request.form.get('phone')
-        if not amount or amount <= 0 or not phone:
-            flash('Invalid amount or phone.', 'warning')
+
+        if not amount or amount <= 0:
+            flash('Please enter a valid amount.', 'warning')
             return redirect(url_for('initiate_payment'))
 
-        # Format phone to international (256xxxxxxxxx)
-        if phone.startswith('0'):
-            phone = '256' + phone[1:]
+        if not phone:
+            flash('Please provide a valid phone number.', 'warning')
+            return redirect(url_for('initiate_payment'))
 
         try:
-            reference = f"{session['member_id']}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+            reference = f"REF{datetime.utcnow().strftime('%Y%m%d%H%M%S')}{user_id}"
+
             payload = {
                 "username": EASYPAY_CLIENT_ID,
                 "password": EASYPAY_SECRET,
@@ -248,34 +251,53 @@ def initiate_payment():
                 "currency": "UGX",
                 "phone": phone,
                 "reference": reference,
-                "reason": f"Payment for {session['member_id']}"
+                "reason": f"Team15 payment for user {session['member_id']}"
             }
 
-            response = requests.post(EASYPAY_API_URL, json=payload, timeout=30)
-            response_data = response.json()
+            # short timeout to avoid Heroku crash
+            response = requests.post(EASYPAY_API_URL, json=payload, timeout=5)
 
-            if response_data.get('success') == 1:
-                transaction_id = response_data.get('data', {}).get('transactionId', reference)
+            res_data = response.json()
+
+            if res_data.get('success') == 1:
                 with get_db_connection() as conn:
                     c = conn.cursor()
                     payment_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                     c.execute('''
                         INSERT INTO payments (user_id, amount, payment_date, transaction_id, status)
                         VALUES (?, ?, ?, ?, ?)
-                    ''', (user_id, amount, payment_date, transaction_id, 'pending'))
+                    ''', (user_id, amount, payment_date, reference, 'pending'))
                     conn.commit()
-                flash('✅ Payment initiated. Check your phone to approve.', 'success')
+
+                flash('Payment initiated. Please approve the mobile money prompt.', 'success')
                 return redirect(url_for('user_dashboard'))
+
             else:
-                flash(f"❌ Failed: {response_data.get('errormsg', 'Unknown error')}", 'danger')
+                flash(f"Payment initiation failed: {res_data.get('errormsg', 'Unknown error')}", 'danger')
                 return redirect(url_for('initiate_payment'))
+
+        except requests.exceptions.ReadTimeout:
+            # still insert as pending
+            with get_db_connection() as conn:
+                c = conn.cursor()
+                payment_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                c.execute('''
+                    INSERT INTO payments (user_id, amount, payment_date, transaction_id, status)
+                    VALUES (?, ?, ?, ?, ?)
+                ''', (user_id, amount, payment_date, reference, 'pending'))
+                conn.commit()
+
+            flash('Payment delayed but initiated. Please check your phone for prompt.', 'info')
+            flash('Payment initiated successfully! Please approve the prompt and then log in.', 'success')
+            return redirect(url_for('login'))
 
         except Exception as e:
             logger.error(f"Payment error: {e}")
-            flash(f"❌ Error initiating payment: {e}", 'danger')
+            flash(f'Payment initiation failed: {e}', 'danger')
             return redirect(url_for('initiate_payment'))
 
     return render_template('user/initiate_payment.html')
+
 
 
 @app.route('/webhook', methods=['POST'])
@@ -283,30 +305,29 @@ def easypay_callback():
     try:
         data = request.get_json()
         reference = data.get('reference')
-        amount = int(data.get('amount'))
+        amount = int(data.get('amount', 0))
         phone = data.get('phone')
         transaction_id = data.get('transactionId')
 
         with get_db_connection() as conn:
             c = conn.cursor()
-            c.execute("SELECT user_id FROM payments WHERE transaction_id = ? OR transaction_id = ?", 
-                      (transaction_id, reference))
+            c.execute("SELECT user_id FROM payments WHERE transaction_id = ?", (reference,))
             payment = c.fetchone()
-            if payment:
-                user_id = payment['user_id']
-                c.execute("UPDATE payments SET status = 'completed' WHERE transaction_id = ? OR transaction_id = ?", 
-                          (transaction_id, reference))
-                c.execute("UPDATE users SET balance = balance + ? WHERE id = ?", (amount, user_id))
-                conn.commit()
-                logger.info(f"✅ Payment confirmed for user {user_id}")
-                return jsonify({'status': 'success'}), 200
-            else:
-                logger.error("❌ Payment not found for callback")
+            if not payment:
                 return jsonify({'status': 'error', 'message': 'Payment not found'}), 404
 
+            user_id = payment['user_id']
+
+            c.execute("UPDATE payments SET status = 'completed' WHERE transaction_id = ?", (reference,))
+            c.execute("UPDATE users SET balance = balance + ? WHERE id = ?", (amount, user_id))
+            conn.commit()
+
+        logger.info(f"Payment completed for reference {reference}")
+        return jsonify({'status': 'success'}), 200
+
     except Exception as e:
-        logger.error(f"❌ Webhook error: {e}")
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+        logger.error(f"IPN error: {e}")
+        return jsonify({'status': 'error', 'message': 'Internal error'}), 500
 
 
 @app.route('/withdraw', methods=['POST'])

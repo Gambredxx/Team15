@@ -23,6 +23,13 @@
     .animate-fadeInUp {
       animation: fadeInUp 0.8s ease-out forwards;
     }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+    .animate-pulse {
+      animation: pulse 2s infinite;
+    }
   </style>
 </head>
 <body class="bg-gray-100">
@@ -56,6 +63,18 @@
   </nav>
 
   <div class="container mx-auto px-4 py-8">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="mb-6">
+          {% for category, message in messages %}
+            <div class="bg-white p-4 rounded-lg shadow-inner text-center text-{{ 'red-600' if category == 'danger' else 'yellow-600' if category == 'warning' else 'green-600' }} font-semibold animate-fadeInUp">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
       <div class="bg-white rounded-xl shadow-md p-6 text-center animate-fadeInUp">
         <div class="text-3xl font-bold text-green-600 mb-2">
@@ -63,7 +82,7 @@
         </div>
         <div class="text-gray-600 mb-4">Available Balance</div>
 
-        <form method="POST" action="/withdraw" class="space-y-4 text-left">
+        <form method="POST" action="{{ url_for('withdraw') }}" class="space-y-4 text-left">
           <label for="amount" class="block text-gray-700 font-semibold">Withdraw Amount (UGX)</label>
           <input
             type="number"
@@ -89,9 +108,9 @@
 
           <button
             type="submit"
-            class="w-full bg-green-600 text-white font-bold py-2 rounded hover:bg-green-700 transition"
+            class="w-full bg-green-600 text-white font-bold py-2 rounded hover:bg-green-700 transition animate-pulse"
           >
-            Withdraw
+            <i class="fas fa-money-bill-wave mr-2"></i> Withdraw
           </button>
         </form>
       </div>
@@ -120,36 +139,34 @@
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
       <div class="md:col-span-2 bg-white rounded-xl shadow-md p-6 animate-fadeInUp">
-        <h2 class="text-xl font-bold mb-4 text-gray-800">Earnings Overview</h2>
-        <div
-          class="h-64 bg-gray-100 rounded-lg flex items-center justify-center"
-        >
-          <p class="text-gray-500">Earnings chart will be displayed here</p>
+        <h2 class="text-xl font-bold mb-4 text-gray-800">Profile Information</h2>
+        <div class="space-y-3">
+          <p class="text-gray-800"><strong>Full Name:</strong> {{ user.fullname }}</p>
+          <p class="text-gray-800"><strong>Member ID:</strong> {{ user.member_id }}</p>
+          <p class="text-gray-800"><strong>Phone:</strong> {{ user.phone }}</p>
+          <p class="text-gray-800"><strong>Registration Date:</strong> {{ user.registration_date }}</p>
+          <p class="text-gray-800"><strong>Status:</strong> {{ 'Active' if user.is_active else 'Pending Activation' }}</p>
         </div>
       </div>
       <div class="bg-white rounded-xl shadow-md p-6 animate-fadeInUp">
-        <h2 class="text-xl font-bold mb-4 text-gray-800">Micro Tasks</h2>
-        <div class="space-y-4">
-          <p class="text-gray-500">No tasks are available today</p>
-        </div>
-        <h2 class="text-xl font-bold mb-4 mt-6 text-gray-800">Referral Link</h2>
+        <h2 class="text-xl font-bold mb-4 text-gray-800">Referral Information</h2>
         <div class="space-y-4">
           <div class="flex items-center space-x-2">
             <input
               type="text"
-              id="referral-link"
-              value="https://ancient-thicket-16292-78a025c47365.herokuapp.com/refer/{{ user.id }}"
+              id="member-id"
+              value="{{ user.member_id }}"
               readonly
               class="w-full border border-gray-300 rounded px-3 py-2 bg-gray-50 text-gray-800 focus:outline-none"
             />
             <button
-              onclick="copyReferralLink()"
-              class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center"
+              onclick="copyMemberId()"
+              class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition flex items-center animate-pulse"
             >
-              <i class="fas fa-copy mr-2"></i> Copy Link
+              <i class="fas fa-copy mr-2"></i> Copy ID
             </button>
           </div>
-          <p class="text-sm text-gray-500">Share this link to invite others and earn referrals!</p>
+          <p class="text-sm text-gray-500">Share your Member ID to invite others and earn referrals!</p>
         </div>
       </div>
     </div>
@@ -168,16 +185,16 @@
   </footer>
 
   <script>
-    function copyReferralLink() {
-      const linkInput = document.getElementById('referral-link');
-      linkInput.select();
-      navigator.clipboard.writeText(linkInput.value)
+    function copyMemberId() {
+      const memberIdInput = document.getElementById('member-id');
+      memberIdInput.select();
+      navigator.clipboard.writeText(memberIdInput.value)
         .then(() => {
-          alert('Referral link copied to clipboard!');
+          alert('Member ID copied to clipboard!');
         })
         .catch(err => {
           console.error('Failed to copy: ', err);
-          alert('Failed to copy the link. Please copy it manually.');
+          alert('Failed to copy the Member ID. Please copy it manually.');
         });
     }
   </script>

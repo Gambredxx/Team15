@@ -6,6 +6,9 @@ import logging
 import requests
 import hashlib
 import json
+import certifi
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
@@ -54,7 +57,7 @@ def init_db():
                 fullname TEXT NOT NULL,
                 phone TEXT NOT NULL UNIQUE,
                 referral_id TEXT NOT NULL,
-                password TEXT NOT NULL,
+                password TEXT NOT NOT NULL,
                 is_active INTEGER DEFAULT 0,
                 balance INTEGER DEFAULT 0,
                 member_id TEXT UNIQUE,
@@ -250,9 +253,32 @@ def initiate_payment():
                 'Client-Id': EASYPAY_CLIENT_ID,
                 'Signature': signature
             }
-            response = requests.post(EASYPAY_API_URL + 'request-payment', json=payload, headers=headers)
-            response_data = response.json()
-            if response.status_code == 200 and response_data.get('success'):
+            # Set up retries and SSL verification
+            session = requests.Session()
+            retries = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
+            session.mount('https://', HTTPAdapter(max_retries=retries))
+            response = session.post(
+                EASYPAY_API_URL + 'request-payment',
+                json=payload,
+                headers=headers,
+                verify=certifi.where()
+            )
+            logger.info(f"API Response Status: {response.status_code}")
+            logger.info(f"API Response Content: {response.text}")
+            logger.info(f"Content-Type: {response.headers.get('Content-Type')}")
+            if response.status_code != 200:
+                flash(f'Payment initiation failed: API returned status {response.status_code}', 'danger')
+                return redirect(url_for('initiate_payment'))
+            if 'application/json' not in response.headers.get('Content-Type', ''):
+                flash('Payment initiation failed: Invalid response format from API', 'danger')
+                return redirect(url_for('initiate_payment'))
+            try:
+                response_data = response.json()
+            except ValueError as e:
+                logger.error(f"JSON Parsing Error: {e}")
+                flash('Payment initiation failed: Invalid JSON response from API', 'danger')
+                return redirect(url_for('initiate_payment'))
+            if response_data.get('success'):
                 transaction_id = response_data.get('transaction_id')
                 with get_db_connection() as conn:
                     c = conn.cursor()
@@ -262,13 +288,16 @@ def initiate_payment():
                         VALUES (?, ?, ?, ?, ?)
                     ''', (user_id, amount, payment_date, transaction_id, 'pending'))
                     conn.commit()
-                flash('Payment initiated successfully! Awaiting confirmation.', 'success')
+                flash('Payment initiation successfully! Awaiting confirmation.', 'success')
                 return redirect(url_for('user_dashboard'))
             else:
                 flash(f'Payment initiation failed: {response_data.get("message", "Unknown error")}', 'danger')
                 return redirect(url_for('initiate_payment'))
         except Exception as e:
             logger.error(f"Payment initiation failed: {e}")
+            logger.error(f"Request URL: {EASYPAY_API_URL + 'request-payment'}")
+            logger.error(f"Payload: {payload}")
+            logger.error(f"Headers: {headers}")
             flash(f'Payment initiation failed: {e}', 'danger')
             return redirect(url_for('initiate_payment'))
     return render_template('user/initiate_payment.html')

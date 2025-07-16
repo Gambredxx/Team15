@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 EASYPAY_CLIENT_ID = '331d3b1290d90f31'
 EASYPAY_SECRET = '7377396e883e612a'
 EASYPAY_API_URL = 'https://www.easypay.co.ug/api/'
-EASYPAY_IPN_URL = 'https://team15-nation-acce28c76789.herokuapp.com/webhook'
+EASYPAY_IPN_URL = 'https://team15-nation-acce28c76789.herokuapp.com/easypay-webhook'
 
 # Database connection
 def get_db_connection():
@@ -289,7 +289,7 @@ def initiate_payment():
 
     return render_template('user/initiate_payment.html')
 
-@app.route('/webhook', methods=['POST'])
+@app.route('/easypay-webhook', methods=['POST'])
 def easypay_callback():
     try:
         data = request.get_json()

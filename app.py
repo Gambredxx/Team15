@@ -223,7 +223,7 @@ def user_dashboard():
 @app.route('/initiate-payment', methods=['GET', 'POST'])
 def initiate_payment():
     if 'logged_in' not in session or session.get('is_admin'):
-        flash('Login required', 'danger')
+        flash('Please log in to initiate payment.', 'danger')
         return redirect(url_for('login'))
 
     user_id = session['user_id']
@@ -254,7 +254,7 @@ def initiate_payment():
                 "reason": f"Team15 payment for user {session['member_id']}"
             }
 
-            # short timeout to avoid Heroku crash
+            # Short timeout to avoid Heroku crash
             response = requests.post(EASYPAY_API_URL, json=payload, timeout=5)
 
             res_data = response.json()
@@ -269,15 +269,15 @@ def initiate_payment():
                     ''', (user_id, amount, payment_date, reference, 'pending'))
                     conn.commit()
 
-                flash('Payment initiated. Please approve the mobile money prompt.', 'success')
-                return redirect(url_for('user_dashboard'))
+                flash('Payment initiated. Please approve the mobile money prompt and log in to continue.', 'success')
+                return redirect(url_for('login'))
 
             else:
                 flash(f"Payment initiation failed: {res_data.get('errormsg', 'Unknown error')}", 'danger')
                 return redirect(url_for('initiate_payment'))
 
         except requests.exceptions.ReadTimeout:
-            # still insert as pending
+            # Still insert as pending
             with get_db_connection() as conn:
                 c = conn.cursor()
                 payment_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -287,8 +287,7 @@ def initiate_payment():
                 ''', (user_id, amount, payment_date, reference, 'pending'))
                 conn.commit()
 
-            flash('Payment delayed but initiated. Please check your phone for prompt.', 'info')
-            flash('Payment initiated successfully! Please approve the prompt and then log in.', 'success')
+            flash(' Please approve the mobile money prompt and log in to continue.', 'info')
             return redirect(url_for('login'))
 
         except Exception as e:
@@ -297,8 +296,6 @@ def initiate_payment():
             return redirect(url_for('initiate_payment'))
 
     return render_template('user/initiate_payment.html')
-
-
 
 @app.route('/webhook', methods=['POST'])
 def easypay_callback():

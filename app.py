@@ -515,49 +515,37 @@ def admin_process_withdrawal(withdrawal_id):
     flash('Withdrawal processed successfully!', 'success')
     return redirect(url_for('admin_withdrawal_management'))
 
-@app.route('/fix-payments-schema', methods=['GET'])
+@app.route('/fix-payments-schema')
 def fix_payments_schema():
     try:
         conn = get_db_connection()
-        cursor = conn.cursor()
+        c = conn.cursor()
 
-        # Disable foreign key constraints
-        cursor.execute("PRAGMA foreign_keys=off;")
+        # Backup old payments data (only if exists)
+        c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='payments_backup'")
+        if not c.fetchone():
+            c.execute("CREATE TABLE IF NOT EXISTS payments_backup AS SELECT * FROM payments")
 
-        # Rename old table
-        cursor.execute("ALTER TABLE payments RENAME TO payments_old;")
+        # Drop old table
+        c.execute("DROP TABLE IF EXISTS payments")
 
-        # Create new table with all required fields
-        cursor.execute("""
-            CREATE TABLE payments (
+        # Recreate payments table with correct schema
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS payments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER,
-                amount INTEGER,
+                amount REAL,
                 payment_date TEXT,
                 transaction_id TEXT,
                 reference TEXT,
-                status TEXT DEFAULT 'pending',
-                FOREIGN KEY(user_id) REFERENCES users(id)
-            );
-        """)
-
-        # Copy data from old table
-        cursor.execute("""
-            INSERT INTO payments (id, user_id, amount, payment_date, status)
-            SELECT id, user_id, amount, payment_date, status FROM payments_old;
-        """)
-
-        # Drop old table
-        cursor.execute("DROP TABLE payments_old;")
-
-        # Re-enable foreign key constraints
-        cursor.execute("PRAGMA foreign_keys=on;")
-
+                status TEXT
+            )
+        ''')
         conn.commit()
         conn.close()
-        return "✅ Payments table schema fixed successfully.", 200
+        return '✅ Payments table dropped and recreated successfully.'
     except Exception as e:
-        return f"❌ Failed to fix schema: {e}", 500
+        return f'❌ Failed to recreate payments table: {e}'
 
 
 if __name__ == '__main__':

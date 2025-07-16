@@ -515,9 +515,9 @@ def admin_process_withdrawal(withdrawal_id):
     flash('Withdrawal processed successfully!', 'success')
     return redirect(url_for('admin_withdrawal_management'))
 
-@app.route('/fix-payments-schema')
+@app.route('/fix-payments-schema-transaction-id')
 @admin_login_required
-def fix_payments_schema():
+def fix_payments_schema_transaction_id():
     try:
         with get_db_connection() as conn:
             c = conn.cursor()
@@ -530,21 +530,23 @@ def fix_payments_schema():
                     amount INTEGER,
                     payment_date TEXT,
                     transaction_id TEXT,
+                    reference TEXT,
                     status TEXT DEFAULT 'pending',
                     FOREIGN KEY(user_id) REFERENCES users(id)
                 )
             ''')
             c.execute('''
-                INSERT INTO payments (id, user_id, amount, payment_date)
-                SELECT id, user_id, amount, payment_date FROM payments_old
+                INSERT INTO payments (id, user_id, amount, payment_date, transaction_id, reference, status)
+                SELECT id, user_id, amount, payment_date, NULL, NULL, status FROM payments_old
             ''')
             c.execute("DROP TABLE payments_old;")
             c.execute("PRAGMA foreign_keys=on;")
             conn.commit()
-        flash("✅ Payments table schema fixed successfully!", "success")
+        flash("✅ `payments` schema updated with `transaction_id` and `reference` columns.", "success")
     except Exception as e:
-        flash(f"❌ Failed to fix payments schema: {e}", "danger")
+        flash(f"❌ Schema update failed: {e}", "danger")
     return redirect(url_for('admin_dashboard'))
+
 
 if __name__ == '__main__':
     app.run(debug=True)

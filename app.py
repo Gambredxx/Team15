@@ -3,9 +3,6 @@ from datetime import datetime
 from functools import wraps
 import sqlite3
 import logging
-import requests
-import hashlib
-import json
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key_here'
@@ -13,28 +10,22 @@ app.secret_key = 'your_secret_key_here'
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# EasyPay Configuration
-EASYPAY_CLIENT_ID = '331d3b1290d90f31'
-EASYPAY_SECRET = '7377396e883e612a'
-EASYPAY_API_URL = 'https://api.easypay.co.ug/api/'
-EASYPAY_IPN_URL = 'https://team15-nation-acce28c76789.herokuapp.com/easypay-callback'
-
-# Database connection
+# ✅ Database connection
 def get_db_connection():
     conn = sqlite3.connect('team15.db')
     conn.row_factory = sqlite3.Row
     return conn
 
-# Generate unique member ID
+# ✅ Generate unique member ID
 def generate_member_id():
     with get_db_connection() as conn:
         c = conn.cursor()
-        c.execute("SELECT member_id FROM users WHERE member_id LIKE 'T15-%' OR member_id LIKE 't15-%'")
+        c.execute("SELECT member_id FROM users WHERE member_id LIKE 'T15-%'")
         existing_ids = [int(row['member_id'].split('-')[1]) for row in c.fetchall() if row['member_id']]
         next_id = max(existing_ids, default=1000) + 1
     return f"T15-{next_id}"
 
-# Admin login decorator
+# ✅ Admin login decorator
 def admin_login_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
@@ -44,7 +35,7 @@ def admin_login_required(f):
         return f(*args, **kwargs)
     return wrapper
 
-# Initialize DB
+# ✅ Initialize DB
 def init_db():
     with sqlite3.connect('team15.db') as conn:
         c = conn.cursor()
@@ -77,8 +68,6 @@ def init_db():
             user_id INTEGER,
             amount INTEGER,
             payment_date TEXT,
-            transaction_id TEXT,
-            status TEXT DEFAULT 'pending',
             FOREIGN KEY(user_id) REFERENCES users(id)
         )''')
 
@@ -115,7 +104,8 @@ def init_db():
 
 init_db()
 
-# Routes
+# ================== ROUTES ===================
+
 @app.route('/')
 def home():
     return render_template('index.html')
@@ -170,7 +160,7 @@ def register():
                     flash('Phone number already exists.', 'warning')
                     return redirect(url_for('register'))
 
-                c.execute("SELECT id FROM users WHERE member_id = ? OR member_id = ?", (referral_id, referral_id.lower()))
+                c.execute("SELECT id FROM users WHERE member_id = ?", (referral_id,))
                 referrer = c.fetchone()
                 if not referrer:
                     flash('Invalid referral ID.', 'warning')
@@ -190,18 +180,17 @@ def register():
                           (referrer['id'], user_id))
 
                 conn.commit()
-                session['user_id'] = user_id
-                session['logged_in'] = True
-                session['is_admin'] = 0
-                session['member_id'] = member_id
-                flash('Registration successful! Please initiate payment to activate your account.', 'success')
-                return redirect(url_for('initiate_payment'))
+                return redirect(url_for('instructions'))
 
         except Exception as e:
             flash('Registration failed: ' + str(e), 'danger')
             return redirect(url_for('register'))
 
     return render_template('register.html')
+
+@app.route('/instructions')
+def instructions():
+    return render_template('instructions.html')
 
 @app.route('/logout')
 def logout():
@@ -234,109 +223,6 @@ def user_dashboard():
         user['direct_referrals'] = direct_referrals
 
     return render_template('user/dashboard.html', user=user)
-
-@app.route('/initiate-payment', methods=['GET', 'POST'])
-def initiate_payment():
-    if 'logged_in' not in session or session.get('is_admin'):
-        flash('Login required', 'danger')
-        return redirect(url_for('login'))
-
-    user_id = session['user_id']
-    if request.method == 'POST':
-        amount = request.form.get('amount', type=int)
-        phone = request.form.get('phone')
-
-        if not amount or amount <= 0:
-            flash('Please enter a valid amount.', 'warning')
-            return redirect(url_for('initiate_payment'))
-
-        if not phone:
-            flash('Please provide a valid phone number.', 'warning')
-            return redirect(url_for('initiate_payment'))
-
-        try:
-            # Generate signature
-            payload = {
-                'client_id': EASYPAY_CLIENT_ID,
-                'amount': amount,
-                'phone': phone,
-                'description': f'Payment for user {session["member_id"]}',
-                'callback_url': EASYPAY_IPN_URL
-            }
-            signature_string = f"{EASYPAY_CLIENT_ID}{phone}{amount}{EASYPAY_SECRET}"
-            signature = hashlib.sha256(signature_string.encode()).hexdigest()
-
-            headers = {
-                'Content-Type': 'application/json',
-                'Client-Id': EASYPAY_CLIENT_ID,
-                'Signature': signature
-            }
-
-            response = requests.post(EASYPAY_API_URL + 'request-payment', json=payload, headers=headers)
-            response_data = response.json()
-
-            if response.status_code == 200 and response_data.get('success'):
-                transaction_id = response_data.get('transaction_id')
-                with get_db_connection() as conn:
-                    c = conn.cursor()
-                    payment_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    c.execute('''INSERT INTO payments (user_id, amount, payment_date, transaction_id, status)
-                                 VALUES (?, ?, ?, ?, ?)''',
-                              (user_id, amount, payment_date, transaction_id, 'pending'))
-                    conn.commit()
-                flash('Payment initiated successfully! Awaiting confirmation.', 'success')
-                return redirect(url_for('user_dashboard'))
-            else:
-                flash(f'Payment initiation failed: {response_data.get("message", "Unknown error")}', 'danger')
-                return redirect(url_for('initiate_payment'))
-
-        except Exception as e:
-            logger.error(f"Payment initiation failed: {e}")
-            flash(f'Payment initiation failed: {e}', 'danger')
-            return redirect(url_for('initiate_payment'))
-
-    return render_template('user/initiate_payment.html')
-
-@app.route('/easypay-callback', methods=['POST'])
-def easypay_callback():
-    try:
-        data = request.get_json()
-        transaction_id = data.get('transaction_id')
-        status = data.get('status')
-        amount = data.get('amount')
-        phone = data.get('phone')
-
-        # Verify signature
-        signature_string = f"{EASYPAY_CLIENT_ID}{phone}{amount}{status}{EASYPAY_SECRET}"
-        signature = hashlib.sha256(signature_string.encode()).hexdigest()
-        if data.get('signature') != signature:
-            logger.error("Invalid signature in EasyPay callback")
-            return jsonify({'status': 'error', 'message': 'Invalid signature'}), 403
-
-        with get_db_connection() as conn:
-            c = conn.cursor()
-            c.execute("SELECT user_id, amount FROM payments WHERE transaction_id = ?", (transaction_id,))
-            payment = c.fetchone()
-
-            if not payment:
-                logger.error(f"No payment found for transaction_id: {transaction_id}")
-                return jsonify({'status': 'error', 'message': 'Payment not found'}), 404
-
-            if status == 'SUCCESS':
-                c.execute("UPDATE payments SET status = 'completed' WHERE transaction_id = ?", (transaction_id,))
-                c.execute("UPDATE users SET balance = balance + ? WHERE id = ?", (payment['amount'], payment['user_id']))
-                conn.commit()
-                logger.info(f"Payment {transaction_id} completed for user {payment['user_id']}")
-                return jsonify({'status': 'success', 'message': 'Payment processed'}), 200
-            else:
-                c.execute("UPDATE payments SET status = 'failed' WHERE transaction_id = ?", (transaction_id,))
-                conn.commit()
-                logger.info(f"Payment {transaction_id} failed")
-                return jsonify({'status': 'error', 'message': 'Payment failed'}), 200
-
-    except Exception as e:
-        logger.error(f"Error processing EasyPay callback: {e}")
-        return jsonify({'status': 'error', 'message': 'Internal server error'}), 500
 
 @app.route('/withdraw', methods=['POST'])
 def withdraw():
@@ -381,7 +267,8 @@ def withdraw():
     flash('Withdrawal request submitted successfully!', 'success')
     return redirect(url_for('user_dashboard'))
 
-# Admin Routes
+# ================= ADMIN ROUTES =================
+
 @app.route('/admin/dashboard')
 @admin_login_required
 def admin_dashboard():
@@ -461,6 +348,7 @@ def admin_activate_user(user_id):
             c = conn.cursor()
             activation_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
+            # Activate the user
             c.execute('''UPDATE users 
                          SET is_active = 1, 
                              activation_date = ?,
@@ -468,16 +356,19 @@ def admin_activate_user(user_id):
                          WHERE id = ?''',
                       (activation_date, session['user_id'], user_id))
 
+            # Find the referrer
             c.execute('''SELECT referrer_id 
                          FROM referrals 
                          WHERE referred_id = ?''', (user_id,))
             referrer = c.fetchone()
 
             if referrer:
+                # Add 5000 to referrer's balance
                 c.execute('''UPDATE users 
                              SET balance = balance + 5000 
                              WHERE id = ?''', (referrer['referrer_id'],))
 
+                # Log the referral bonus payment
                 payment_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 c.execute('''INSERT INTO payments (user_id, amount, payment_date)
                              VALUES (?, ?, ?)''',
@@ -496,6 +387,7 @@ def admin_activate_user(user_id):
 def admin_deactivate_user(user_id):
     with get_db_connection() as conn:
         c = conn.cursor()
+        # Check if user exists and is not an admin
         c.execute("SELECT is_admin FROM users WHERE id = ?", (user_id,))
         user = c.fetchone()
 
@@ -507,6 +399,7 @@ def admin_deactivate_user(user_id):
             flash('Cannot deactivate an admin account.', 'warning')
             return redirect(url_for('admin_user_management'))
 
+        # Deactivate the user
         c.execute('''UPDATE users 
                      SET is_active = 0,
                          activation_date = NULL,
@@ -535,36 +428,51 @@ def admin_process_withdrawal(withdrawal_id):
     flash('Withdrawal processed successfully!', 'success')
     return redirect(url_for('admin_withdrawal_management'))
 
+# =============== FIX PAYMENTS SCHEMA ROUTE ===============
+
 @app.route('/fix-payments-schema')
 @admin_login_required
 def fix_payments_schema():
     try:
         with get_db_connection() as conn:
             c = conn.cursor()
+
+            # Disable foreign key checks
             c.execute("PRAGMA foreign_keys=off;")
+
+            # Rename existing table
             c.execute("ALTER TABLE payments RENAME TO payments_old;")
+
+            # Recreate table without `phone` field
             c.execute('''
                 CREATE TABLE payments (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER,
                     amount INTEGER,
                     payment_date TEXT,
-                    transaction_id TEXT,
-                    status TEXT DEFAULT 'pending',
                     FOREIGN KEY(user_id) REFERENCES users(id)
                 )
             ''')
+
+            # Copy data from old table, skip phone column
             c.execute('''
                 INSERT INTO payments (id, user_id, amount, payment_date)
                 SELECT id, user_id, amount, payment_date FROM payments_old
             ''')
+
+            # Drop old table
             c.execute("DROP TABLE payments_old;")
+
+            # Re-enable foreign keys
             c.execute("PRAGMA foreign_keys=on;")
+
             conn.commit()
         flash("✅ Payments table schema fixed successfully!", "success")
     except Exception as e:
         flash(f"❌ Failed to fix payments schema: {e}", "danger")
     return redirect(url_for('admin_dashboard'))
+
+# =================== RUN APP =====================
 
 if __name__ == '__main__':
     app.run(debug=True)

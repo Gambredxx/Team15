@@ -227,47 +227,35 @@ def initiate_payment():
         return redirect(url_for('login'))
 
     user_id = session['user_id']
-    
     if request.method == 'POST':
         amount = request.form.get('amount', type=int)
         phone = request.form.get('phone')
+        if not amount or amount <= 0 or not phone:
+            flash('Invalid amount or phone.', 'warning')
+            return redirect(url_for('initiate_payment'))
 
-        if not amount or amount <= 0:
-            flash('Please enter a valid amount.', 'warning')
-            return redirect(url_for('initiate_payment'))
-        if not phone:
-            flash('Please provide a valid phone number.', 'warning')
-            return redirect(url_for('initiate_payment'))
+        # Format phone to international (256xxxxxxxxx)
+        if phone.startswith('0'):
+            phone = '256' + phone[1:]
 
         try:
+            reference = f"{session['member_id']}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
             payload = {
-                'client_id': EASYPAY_CLIENT_ID,
-                'amount': amount,
-                'phone': phone,
-                'description': f'Payment for user {session["member_id"]}',
-                'callback_url': EASYPAY_IPN_URL
+                "username": EASYPAY_CLIENT_ID,
+                "password": EASYPAY_SECRET,
+                "action": "mmdeposit",
+                "amount": amount,
+                "currency": "UGX",
+                "phone": phone,
+                "reference": reference,
+                "reason": f"Payment for {session['member_id']}"
             }
 
-            signature_string = f"{EASYPAY_CLIENT_ID}{phone}{amount}{EASYPAY_SECRET}"
-            signature = hashlib.sha256(signature_string.encode()).hexdigest()
-            headers = {
-                'Content-Type': 'application/json',
-                'Client-Id': EASYPAY_CLIENT_ID,
-                'Signature': signature
-            }
+            response = requests.post(EASYPAY_API_URL, json=payload, timeout=30)
+            response_data = response.json()
 
-            response = requests.post(EASYPAY_API_URL + 'request-payment', json=payload, headers=headers)
-            logger.debug(f"EasyPay raw response: {response.status_code} - {response.text}")
-
-            # Safely try parsing JSON
-            try:
-                response_data = response.json()
-            except json.JSONDecodeError:
-                flash("Error: EasyPay returned invalid response. Please try again later.", 'danger')
-                return redirect(url_for('initiate_payment'))
-
-            if response.status_code == 200 and response_data.get('success'):
-                transaction_id = response_data.get('transaction_id')
+            if response_data.get('success') == 1:
+                transaction_id = response_data.get('data', {}).get('transactionId', reference)
                 with get_db_connection() as conn:
                     c = conn.cursor()
                     payment_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -276,53 +264,50 @@ def initiate_payment():
                         VALUES (?, ?, ?, ?, ?)
                     ''', (user_id, amount, payment_date, transaction_id, 'pending'))
                     conn.commit()
-                flash('Payment initiated successfully! Awaiting confirmation.', 'success')
+                flash('✅ Payment initiated. Check your phone to approve.', 'success')
                 return redirect(url_for('user_dashboard'))
             else:
-                flash(f"Payment initiation failed: {response_data.get('message', 'Unknown error')}", 'danger')
+                flash(f"❌ Failed: {response_data.get('errormsg', 'Unknown error')}", 'danger')
                 return redirect(url_for('initiate_payment'))
 
         except Exception as e:
-            logger.error(f"Payment initiation exception: {e}")
-            flash(f"Payment initiation failed: {e}", 'danger')
+            logger.error(f"Payment error: {e}")
+            flash(f"❌ Error initiating payment: {e}", 'danger')
             return redirect(url_for('initiate_payment'))
 
     return render_template('user/initiate_payment.html')
 
-@app.route('/easypay-webhook', methods=['POST'])
+
+@app.route('/webhook', methods=['POST'])
 def easypay_callback():
     try:
         data = request.get_json()
-        transaction_id = data.get('transaction_id')
-        status = data.get('status')
-        amount = data.get('amount')
+        reference = data.get('reference')
+        amount = int(data.get('amount'))
         phone = data.get('phone')
-        signature_string = f"{EASYPAY_CLIENT_ID}{phone}{amount}{status}{EASYPAY_SECRET}"
-        signature = hashlib.sha256(signature_string.encode()).hexdigest()
-        if data.get('signature') != signature:
-            logger.error("Invalid signature in EasyPay callback")
-            return jsonify({'status': 'error', 'message': 'Invalid signature'}), 403
+        transaction_id = data.get('transactionId')
+
         with get_db_connection() as conn:
             c = conn.cursor()
-            c.execute("SELECT user_id, amount FROM payments WHERE transaction_id = ?", (transaction_id,))
+            c.execute("SELECT user_id FROM payments WHERE transaction_id = ? OR transaction_id = ?", 
+                      (transaction_id, reference))
             payment = c.fetchone()
-            if not payment:
-                logger.error(f"No payment found for transaction_id: {transaction_id}")
-                return jsonify({'status': 'error', 'message': 'Payment not found'}), 404
-            if status == 'SUCCESS':
-                c.execute("UPDATE payments SET status = 'completed' WHERE transaction_id = ?", (transaction_id,))
-                c.execute("UPDATE users SET balance = balance + ? WHERE id = ?", (payment['amount'], payment['user_id']))
+            if payment:
+                user_id = payment['user_id']
+                c.execute("UPDATE payments SET status = 'completed' WHERE transaction_id = ? OR transaction_id = ?", 
+                          (transaction_id, reference))
+                c.execute("UPDATE users SET balance = balance + ? WHERE id = ?", (amount, user_id))
                 conn.commit()
-                logger.info(f"Payment {transaction_id} completed for user {payment['user_id']}")
-                return jsonify({'status': 'success', 'message': 'Payment processed'}), 200
+                logger.info(f"✅ Payment confirmed for user {user_id}")
+                return jsonify({'status': 'success'}), 200
             else:
-                c.execute("UPDATE payments SET status = 'failed' WHERE transaction_id = ?", (transaction_id,))
-                conn.commit()
-                logger.info(f"Payment {transaction_id} failed")
-                return jsonify({'status': 'error', 'message': 'Payment failed'}), 200
+                logger.error("❌ Payment not found for callback")
+                return jsonify({'status': 'error', 'message': 'Payment not found'}), 404
+
     except Exception as e:
-        logger.error(f"Error processing EasyPay callback: {e}")
-        return jsonify({'status': 'error', 'message': 'Internal server error'}), 500
+        logger.error(f"❌ Webhook error: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 
 @app.route('/withdraw', methods=['POST'])
 def withdraw():

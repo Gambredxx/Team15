@@ -10,22 +10,22 @@ app.secret_key = 'your_secret_key_here'
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# Database connection
+# ✅ Database connection
 def get_db_connection():
     conn = sqlite3.connect('team15.db')
     conn.row_factory = sqlite3.Row
     return conn
 
-# Generate unique member ID
+# ✅ Generate unique member ID
 def generate_member_id():
     with get_db_connection() as conn:
         c = conn.cursor()
-        c.execute("SELECT member_id FROM users WHERE member_id LIKE 'T15-%' OR member_id LIKE 't15-%'")
+        c.execute("SELECT member_id FROM users WHERE member_id LIKE 'T15-%'")
         existing_ids = [int(row['member_id'].split('-')[1]) for row in c.fetchall() if row['member_id']]
         next_id = max(existing_ids, default=1000) + 1
     return f"T15-{next_id}"
 
-# Admin login decorator
+# ✅ Admin login decorator
 def admin_login_required(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
@@ -35,7 +35,7 @@ def admin_login_required(f):
         return f(*args, **kwargs)
     return wrapper
 
-# Initialize DB
+# ✅ Initialize DB
 def init_db():
     with sqlite3.connect('team15.db') as conn:
         c = conn.cursor()
@@ -100,28 +100,6 @@ def init_db():
                     (f"Admin {admin['member_id']}", admin['phone'], 'SYSTEM', admin['password'], 1,
                      admin['balance'], admin['member_id'], registration_date, 1))
 
-        # New users to activate
-        new_users = [
-            {'fullname': 'Osuta Reagan', 'phone': '0760042902', 'member_id': 'T15-1010', 'password': '123456'},
-            {'fullname': 'Teebobo Walter', 'phone': '0753314955', 'member_id': 'T15-1007', 'password': '123456'},
-            {'fullname': 'Aligo Paul', 'phone': '0768742907', 'member_id': 'T15-1009', 'password': '123456'}
-        ]
-        for user in new_users:
-            c.execute("SELECT id FROM users WHERE phone = ?", (user['phone'],))
-            if not c.fetchone():
-                registration_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                c.execute('''INSERT INTO users 
-                    (fullname, phone, referral_id, password, is_active, 
-                     balance, member_id, registration_date)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
-                    (user['fullname'], user['phone'], 'SYSTEM', user['password'], 1,
-                     0, user['member_id'], registration_date))
-            else:
-                c.execute('''UPDATE users 
-                    SET is_active = 1, password = ?, fullname = ?
-                    WHERE member_id = ?''',
-                    (user['password'], user['fullname'], user['member_id']))
-
         conn.commit()
 
 init_db()
@@ -169,10 +147,9 @@ def register():
         referral_id = request.form.get('referral_id')
         password = request.form.get('password')
 
-        if not hood: # Check if all required fields are filled
-            if not all([fullname, phone, referral_id, password]):
-                flash('All fields are required.', 'danger')
-                return redirect(url_for('register'))
+        if not all([fullname, phone, referral_id, password]):
+            flash('All fields are required.', 'danger')
+            return redirect(url_for('register'))
 
         try:
             with get_db_connection() as conn:
@@ -183,10 +160,7 @@ def register():
                     flash('Phone number already exists.', 'warning')
                     return redirect(url_for('register'))
 
-                # Normalize referral_id to handle both 'T15-' and 't15-' prefixes
-                normalized_referral_id = referral_id.upper() if referral_id else referral_id
-                c.execute("SELECT id FROM users WHERE member_id = ? OR member_id = ?", 
-                         (normalized_referral_id, normalized_referral_id.replace('T15-', 't15-')))
+                c.execute("SELECT id FROM users WHERE member_id = ?", (referral_id,))
                 referrer = c.fetchone()
                 if not referrer:
                     flash('Invalid referral ID.', 'warning')
@@ -199,7 +173,7 @@ def register():
                              (fullname, phone, referral_id, password, is_active, 
                               balance, member_id, registration_date)
                              VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
-                          (fullname, phone, normalized_referral_id, password, 0, 0, member_id, registration_date))
+                          (fullname, phone, referral_id, password, 0, 0, member_id, registration_date))
                 user_id = c.lastrowid
 
                 c.execute("INSERT INTO referrals (referrer_id, referred_id) VALUES (?, ?)", 
@@ -299,7 +273,7 @@ def withdraw():
 @admin_login_required
 def admin_dashboard():
     with get_db_connection() as conn:
-        c = conn.cursor강강
+        c = conn.cursor()
         c.execute('''SELECT u.*, COUNT(r.referred_id) as referrals_count
                      FROM users u
                      LEFT JOIN referrals r ON u.id = r.referrer_id
@@ -502,3 +476,4 @@ def fix_payments_schema():
 
 if __name__ == '__main__':
     app.run(debug=True)
+

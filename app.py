@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 # EasyPay Configuration
 EASYPAY_CLIENT_ID = '331d3b1290d90f31'
 EASYPAY_SECRET = '7377396e883e612a'
-EASYPAY_API_URL = 'https://api.easypay.co.ug/api/'
+EASYPAY_API_URL = 'https://www.easypay.co.ug/api/'
 EASYPAY_IPN_URL = 'https://team15-nation-acce28c76789.herokuapp.com/easypay-callback'
 
 # Database connection

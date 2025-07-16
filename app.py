@@ -515,37 +515,49 @@ def admin_process_withdrawal(withdrawal_id):
     flash('Withdrawal processed successfully!', 'success')
     return redirect(url_for('admin_withdrawal_management'))
 
-@app.route('/fix-payments-schema-transaction-id')
-@admin_login_required
-def fix_payments_schema_transaction_id():
+@app.route('/fix-payments-schema', methods=['GET'])
+def fix_payments_schema():
     try:
-        with get_db_connection() as conn:
-            c = conn.cursor()
-            c.execute("PRAGMA foreign_keys=off;")
-            c.execute("ALTER TABLE payments RENAME TO payments_old;")
-            c.execute('''
-                CREATE TABLE payments (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER,
-                    amount INTEGER,
-                    payment_date TEXT,
-                    transaction_id TEXT,
-                    reference TEXT,
-                    status TEXT DEFAULT 'pending',
-                    FOREIGN KEY(user_id) REFERENCES users(id)
-                )
-            ''')
-            c.execute('''
-                INSERT INTO payments (id, user_id, amount, payment_date, transaction_id, reference, status)
-                SELECT id, user_id, amount, payment_date, NULL, NULL, status FROM payments_old
-            ''')
-            c.execute("DROP TABLE payments_old;")
-            c.execute("PRAGMA foreign_keys=on;")
-            conn.commit()
-        flash("✅ `payments` schema updated with `transaction_id` and `reference` columns.", "success")
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Disable foreign key constraints
+        cursor.execute("PRAGMA foreign_keys=off;")
+
+        # Rename old table
+        cursor.execute("ALTER TABLE payments RENAME TO payments_old;")
+
+        # Create new table with all required fields
+        cursor.execute("""
+            CREATE TABLE payments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                amount INTEGER,
+                payment_date TEXT,
+                transaction_id TEXT,
+                reference TEXT,
+                status TEXT DEFAULT 'pending',
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            );
+        """)
+
+        # Copy data from old table
+        cursor.execute("""
+            INSERT INTO payments (id, user_id, amount, payment_date, status)
+            SELECT id, user_id, amount, payment_date, status FROM payments_old;
+        """)
+
+        # Drop old table
+        cursor.execute("DROP TABLE payments_old;")
+
+        # Re-enable foreign key constraints
+        cursor.execute("PRAGMA foreign_keys=on;")
+
+        conn.commit()
+        conn.close()
+        return "✅ Payments table schema fixed successfully.", 200
     except Exception as e:
-        flash(f"❌ Schema update failed: {e}", "danger")
-    return redirect(url_for('admin_dashboard'))
+        return f"❌ Failed to fix schema: {e}", 500
 
 
 if __name__ == '__main__':

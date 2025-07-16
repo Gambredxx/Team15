@@ -225,16 +225,20 @@ def initiate_payment():
     if 'logged_in' not in session or session.get('is_admin'):
         flash('Login required', 'danger')
         return redirect(url_for('login'))
+
     user_id = session['user_id']
+    
     if request.method == 'POST':
         amount = request.form.get('amount', type=int)
         phone = request.form.get('phone')
+
         if not amount or amount <= 0:
             flash('Please enter a valid amount.', 'warning')
             return redirect(url_for('initiate_payment'))
         if not phone:
             flash('Please provide a valid phone number.', 'warning')
             return redirect(url_for('initiate_payment'))
+
         try:
             payload = {
                 'client_id': EASYPAY_CLIENT_ID,
@@ -243,6 +247,7 @@ def initiate_payment():
                 'description': f'Payment for user {session["member_id"]}',
                 'callback_url': EASYPAY_IPN_URL
             }
+
             signature_string = f"{EASYPAY_CLIENT_ID}{phone}{amount}{EASYPAY_SECRET}"
             signature = hashlib.sha256(signature_string.encode()).hexdigest()
             headers = {
@@ -250,8 +255,17 @@ def initiate_payment():
                 'Client-Id': EASYPAY_CLIENT_ID,
                 'Signature': signature
             }
+
             response = requests.post(EASYPAY_API_URL + 'request-payment', json=payload, headers=headers)
-            response_data = response.json()
+            logger.debug(f"EasyPay raw response: {response.status_code} - {response.text}")
+
+            # Safely try parsing JSON
+            try:
+                response_data = response.json()
+            except json.JSONDecodeError:
+                flash("Error: EasyPay returned invalid response. Please try again later.", 'danger')
+                return redirect(url_for('initiate_payment'))
+
             if response.status_code == 200 and response_data.get('success'):
                 transaction_id = response_data.get('transaction_id')
                 with get_db_connection() as conn:
@@ -265,12 +279,14 @@ def initiate_payment():
                 flash('Payment initiated successfully! Awaiting confirmation.', 'success')
                 return redirect(url_for('user_dashboard'))
             else:
-                flash(f'Payment initiation failed: {response_data.get("message", "Unknown error")}', 'danger')
+                flash(f"Payment initiation failed: {response_data.get('message', 'Unknown error')}", 'danger')
                 return redirect(url_for('initiate_payment'))
+
         except Exception as e:
-            logger.error(f"Payment initiation failed: {e}")
-            flash(f'Payment initiation failed: {e}', 'danger')
+            logger.error(f"Payment initiation exception: {e}")
+            flash(f"Payment initiation failed: {e}", 'danger')
             return redirect(url_for('initiate_payment'))
+
     return render_template('user/initiate_payment.html')
 
 @app.route('/easypay-callback', methods=['POST'])

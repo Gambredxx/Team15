@@ -184,15 +184,15 @@ def register():
                 c.execute("INSERT INTO referrals (referrer_id, referred_id) VALUES (?, ?)", 
                          (referrer['id'], user_id))
                 conn.commit()
-                return redirect(url_for('instructions'))
+                session['user_id'] = user_id
+                session['logged_in'] = True
+                session['is_admin'] = 0
+                session['member_id'] = member_id
+                return redirect(url_for('initiate_payment'))
         except Exception as e:
             flash('Registration failed: ' + str(e), 'danger')
             return redirect(url_for('register'))
     return render_template('register.html')
-
-@app.route('/instructions')
-def instructions():
-    return render_template('instructions.html')
 
 @app.route('/logout')
 def logout():

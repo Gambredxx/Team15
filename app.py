@@ -6,12 +6,9 @@ import logging
 import requests
 import hashlib
 import json
-import traceback
-from flask_bcrypt import Bcrypt
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key_here'  # Replace with a secure key in production
-bcrypt = Bcrypt(app)
+app.secret_key = 'your_secret_key_here'
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
@@ -49,7 +46,7 @@ def admin_login_required(f):
 
 # Initialize DB
 def init_db():
-    with get_db_connection() as conn:
+    with sqlite3.connect('team15.db') as conn:
         c = conn.cursor()
         c.execute('''
             CREATE TABLE IF NOT EXISTS users (
@@ -102,11 +99,6 @@ def init_db():
                 FOREIGN KEY(processed_by) REFERENCES users(id)
             )
         ''')
-        # Add indexes for performance
-        c.execute('CREATE INDEX IF NOT EXISTS idx_users_id ON users(id)')
-        c.execute('CREATE INDEX IF NOT EXISTS idx_referrals_referrer_id ON referrals(referrer_id)')
-        c.execute('CREATE INDEX IF NOT EXISTS idx_withdrawals_user_id ON withdrawals(user_id)')
-        # Initialize admin accounts
         admins = [
             {'phone': '0701618842', 'member_id': 'TM00001', 'password': 'admin123', 'balance': 13000},
             {'phone': '0394005261', 'member_id': 'TM00002', 'password': 'admin123', 'balance': 0},
@@ -116,7 +108,6 @@ def init_db():
             c.execute("SELECT id FROM users WHERE phone = ?", (admin['phone'],))
             if not c.fetchone():
                 registration_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                hashed_password = bcrypt.generate_password_hash(admin['password']).decode('utf-8')
                 c.execute('''
                     INSERT INTO users 
                     (fullname, phone, referral_id, password, is_active, 
@@ -124,35 +115,12 @@ def init_db():
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     f"Admin {admin['member_id']}", admin['phone'], 'SYSTEM', 
-                    hashed_password, 1, admin['balance'], admin['member_id'], 
+                    admin['password'], 1, admin['balance'], admin['member_id'], 
                     registration_date, 1
                 ))
         conn.commit()
 
-# Migrate withdrawals table to add member_id and fullname if missing
-def migrate_withdrawals_table():
-    try:
-        with get_db_connection() as conn:
-            c = conn.cursor()
-            c.execute("PRAGMA table_info(withdrawals)")
-            columns = [col['name'] for col in c.fetchall()]
-            if 'member_id' not in columns:
-                c.execute("ALTER TABLE withdrawals ADD COLUMN member_id TEXT")
-            if 'fullname' not in columns:
-                c.execute("ALTER TABLE withdrawals ADD COLUMN fullname TEXT")
-            c.execute('''
-                UPDATE withdrawals
-                SET member_id = (SELECT member_id FROM users WHERE users.id = withdrawals.user_id),
-                    fullname = (SELECT fullname FROM users WHERE users.id = withdrawals.user_id)
-                WHERE member_id IS NULL OR fullname IS NULL
-            ''')
-            conn.commit()
-        logger.info("Withdrawals table migration completed successfully.")
-    except Exception as e:
-        logger.error(f"Withdrawals table migration failed: {e}\n{traceback.format_exc()}")
-
 init_db()
-migrate_withdrawals_table()
 
 # Routes
 @app.route('/')
@@ -166,9 +134,9 @@ def login():
         password = request.form['password']
         with get_db_connection() as conn:
             c = conn.cursor()
-            c.execute("SELECT * FROM users WHERE phone = ?", (phone,))
+            c.execute("SELECT * FROM users WHERE phone = ? AND password = ?", (phone, password))
             user = c.fetchone()
-            if user and bcrypt.check_password_hash(user['password'], password):
+            if user:
                 session['user_id'] = user['id']
                 session['logged_in'] = True
                 session['is_admin'] = user['is_admin']
@@ -208,13 +176,12 @@ def register():
                     return redirect(url_for('register'))
                 member_id = generate_member_id()
                 registration_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
                 c.execute('''
                     INSERT INTO users 
                     (fullname, phone, referral_id, password, is_active, 
                      balance, member_id, registration_date)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (fullname, phone, referral_id, hashed_password, 0, 0, member_id, registration_date))
+                ''', (fullname, phone, referral_id, password, 0, 0, member_id, registration_date))
                 user_id = c.lastrowid
                 c.execute("INSERT INTO referrals (referrer_id, referred_id) VALUES (?, ?)", 
                          (referrer['id'], user_id))
@@ -225,8 +192,7 @@ def register():
                 session['member_id'] = member_id
                 return redirect(url_for('initiate_payment'))
         except Exception as e:
-            logger.error(f"Registration failed: {e}\n{traceback.format_exc()}")
-            flash(f'Registration failed: {str(e)}', 'danger')
+            flash('Registration failed: ' + str(e), 'danger')
             return redirect(url_for('register'))
     return render_template('register.html')
 
@@ -290,7 +256,7 @@ def initiate_payment():
                 "reason": f"Team15 payment for user {session['member_id']}"
             }
 
-            response = requests.post(EASYPAY_API_URL, json=payload, timeout=10)
+            response = requests.post(EASYPAY_API_URL, json=payload, timeout=5)
             res_data = response.json()
 
             if res_data.get('success') == 1:
@@ -311,7 +277,6 @@ def initiate_payment():
                 return redirect(url_for('initiate_payment'))
 
         except requests.exceptions.ReadTimeout:
-            logger.error("EasyPay API timeout for reference %s", reference)
             with get_db_connection() as conn:
                 c = conn.cursor()
                 payment_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -321,11 +286,11 @@ def initiate_payment():
                 ''', (user_id, amount, payment_date, reference, 'pending'))
                 conn.commit()
 
-            flash('Payment request timed out. Please approve the mobile money prompt and log in to continue.', 'info')
+            flash('Please approve the mobile money prompt and log in to continue.', 'info')
             return redirect(url_for('login'))
 
         except Exception as e:
-            logger.error(f"Payment error: {e}\n{traceback.format_exc()}")
+            logger.error(f"Payment error: {e}")
             flash(f'Payment initiation failed: {e}', 'danger')
             return redirect(url_for('initiate_payment'))
 
@@ -345,10 +310,10 @@ def easypay_callback():
             c.execute("SELECT user_id FROM payments WHERE transaction_id = ?", (reference,))
             payment = c.fetchone()
             if not payment:
-                logger.error("Payment not found for reference %s", reference)
                 return jsonify({'status': 'error', 'message': 'Payment not found'}), 404
 
             user_id = payment['user_id']
+
             c.execute("UPDATE payments SET status = 'completed' WHERE transaction_id = ?", (reference,))
             c.execute("UPDATE users SET balance = balance + ? WHERE id = ?", (amount, user_id))
             conn.commit()
@@ -357,7 +322,7 @@ def easypay_callback():
         return jsonify({'status': 'success'}), 200
 
     except Exception as e:
-        logger.error(f"IPN error: {e}\n{traceback.format_exc()}")
+        logger.error(f"IPN error: {e}")
         return jsonify({'status': 'error', 'message': 'Internal error'}), 500
 
 @app.route('/withdraw', methods=['POST'])
@@ -366,46 +331,38 @@ def withdraw():
         flash('Login required', 'danger')
         return redirect(url_for('login'))
     user_id = session['user_id']
-    try:
-        amount = request.form.get('amount', type=float)
-        method = request.form.get('method')
-        
-        if not amount or amount <= 0:
-            flash('Please enter a valid withdrawal amount.', 'warning')
+    amount = request.form.get('amount', type=float)
+    method = request.form.get('method')
+    if not amount or amount <= 0:
+        flash('Please enter a valid withdrawal amount.', 'warning')
+        return redirect(url_for('user_dashboard'))
+    if method not in ['mtn', 'airtel']:
+        flash('Invalid withdrawal method selected.', 'warning')
+        return redirect(url_for('user_dashboard'))
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT balance, member_id, fullname FROM users WHERE id = ?", (user_id,))
+        user = c.fetchone()
+        if not user:
+            flash('User not found.', 'danger')
+            return redirect(url_for('login'))
+        if amount > user['balance']:
+            flash('Insufficient balance for withdrawal.', 'warning')
             return redirect(url_for('user_dashboard'))
-        if method not in ['mtn', 'airtel']:
-            flash('Invalid withdrawal method selected.', 'warning')
-            return redirect(url_for('user_dashboard'))
-        
-        with get_db_connection() as conn:
-            c = conn.cursor()
-            c.execute("SELECT balance, member_id, fullname FROM users WHERE id = ?", (user_id,))
-            user = c.fetchone()
-            if not user:
-                flash('User not found.', 'danger')
-                return redirect(url_for('login'))
-            if amount > user['balance']:
-                flash('Insufficient balance for withdrawal.', 'warning')
-                return redirect(url_for('user_dashboard'))
-            new_balance = user['balance'] - amount
-            c.execute("UPDATE users SET balance = ? WHERE id = ?", (new_balance, user_id))
-            request_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            c.execute('''
-                INSERT INTO withdrawals (user_id, amount, status, request_date, member_id, fullname)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (user_id, amount, 'pending', request_date, user['member_id'], user['fullname']))
-            conn.commit()
-        flash('Withdrawal request submitted successfully!', 'success')
-    except Exception as e:
-        logger.error(f"Withdrawal error: {e}\n{traceback.format_exc()}")
-        flash(f'Withdrawal failed: {str(e)}', 'danger')
+        new_balance = user['balance'] - amount
+        c.execute("UPDATE users SET balance = ? WHERE id = ?", (new_balance, user_id))
+        request_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        c.execute('''
+            INSERT INTO withdrawals (user_id, amount, status, request_date, member_id, fullname)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (user_id, amount, 'pending', request_date, user['member_id'], user['fullname']))
+        conn.commit()
+    flash('Withdrawal request submitted successfully!', 'success')
     return redirect(url_for('user_dashboard'))
 
-@app.route('/admin/dashboard/<int:page>')
+@app.route('/admin/dashboard')
 @admin_login_required
-def admin_dashboard(page=1):
-    per_page = 10
-    offset = (page - 1) * per_page
+def admin_dashboard():
     with get_db_connection() as conn:
         c = conn.cursor()
         c.execute('''
@@ -414,21 +371,16 @@ def admin_dashboard(page=1):
             LEFT JOIN referrals r ON u.id = r.referrer_id
             GROUP BY u.id
             ORDER BY u.registration_date DESC
-            LIMIT ? OFFSET ?
-        ''', (per_page, offset))
+        ''')
         users = c.fetchall()
         c.execute('''
             SELECT w.*, u.member_id, u.fullname 
             FROM withdrawals w
             JOIN users u ON w.user_id = u.id
             ORDER BY w.request_date DESC
-            LIMIT ? OFFSET ?
-        ''', (per_page, offset))
+        ''')
         withdrawals = c.fetchall()
-        c.execute("SELECT COUNT(*) FROM users")
-        total_users = c.fetchone()[0]
-        total_pages = (total_users + per_page - 1) // per_page
-    return render_template('admin/dashboard.html', users=users, withdrawals=withdrawals, page=page, total_pages=total_pages)
+    return render_template('admin/dashboard.html', users=users, withdrawals=withdrawals)
 
 @app.route('/admin/edit-user', methods=['POST'])
 @admin_login_required
@@ -466,7 +418,7 @@ def admin_edit_user():
 
         flash('User updated successfully!', 'success')
     except Exception as e:
-        logger.error(f"User edit failed: {e}\n{traceback.format_exc()}")
+        logger.error(f"User edit failed: {e}")
         flash(f'User update failed: {e}', 'danger')
     return redirect(url_for('admin_dashboard'))
 
@@ -498,7 +450,7 @@ def admin_delete_user(user_id):
             conn.commit()
         flash('User deleted successfully!', 'success')
     except Exception as e:
-        logger.error(f"User deletion failed: {e}\n{traceback.format_exc()}")
+        logger.error(f"User deletion failed: {e}")
         flash(f'User deletion failed: {e}', 'danger')
     return redirect(url_for('admin_dashboard'))
 
@@ -536,85 +488,76 @@ def admin_activate_user(user_id):
             conn.commit()
         flash('User activated successfully! Referrer received 5000 bonus.', 'success')
     except Exception as e:
-        logger.error(f"Activation failed: {e}\n{traceback.format_exc()}")
+        logger.error(f"Activation failed: {e}")
         flash(f'Activation failed: {e}', 'danger')
     return redirect(url_for('admin_dashboard'))
 
 @app.route('/admin/deactivate-user/<int:user_id>')
 @admin_login_required
 def admin_deactivate_user(user_id):
-    try:
-        with get_db_connection() as conn:
-            c = conn.cursor()
-            c.execute("SELECT is_admin FROM users WHERE id = ?", (user_id,))
-            user = c.fetchone()
-            if not user:
-                flash('User not found.', 'danger')
-                return redirect(url_for('admin_dashboard'))
-            if user['is_admin']:
-                flash('Cannot deactivate an admin account.', 'warning')
-                return redirect(url_for('admin_dashboard'))
-            c.execute('''
-                UPDATE users 
-                SET is_active = 0,
-                    activation_date = NULL,
-                    activated_by = NULL
-                WHERE id = ?
-            ''', (user_id,))
-            conn.commit()
-        flash('User deactivated successfully!', 'success')
-    except Exception as e:
-        logger.error(f"Deactivation failed: {e}\n{traceback.format_exc()}")
-        flash(f'Deactivation failed: {e}', 'danger')
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        c.execute("SELECT is_admin FROM users WHERE id = ?", (user_id,))
+        user = c.fetchone()
+        if not user:
+            flash('User not found.', 'danger')
+            return redirect(url_for('admin_dashboard'))
+        if user['is_admin']:
+            flash('Cannot deactivate an admin account.', 'warning')
+            return redirect(url_for('admin_dashboard'))
+        c.execute('''
+            UPDATE users 
+            SET is_active = 0,
+                activation_date = NULL,
+                activated_by = NULL
+            WHERE id = ?
+        ''', (user_id,))
+        conn.commit()
+    flash('User deactivated successfully!', 'success')
     return redirect(url_for('admin_dashboard'))
 
 @app.route('/admin/process-withdrawal/<int:withdrawal_id>')
 @admin_login_required
 def admin_process_withdrawal(withdrawal_id):
-    try:
-        with get_db_connection() as conn:
-            c = conn.cursor()
-            process_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            c.execute('''
-                UPDATE withdrawals 
-                SET status = 'paid',
-                    processed_by = ?,
-                    process_date = ?
-                WHERE id = ?
-            ''', (session['user_id'], process_date, withdrawal_id))
-            conn.commit()
-        flash('Withdrawal processed successfully!', 'success')
-    except Exception as e:
-        logger.error(f"Withdrawal processing failed: {e}\n{traceback.format_exc()}")
-        flash(f'Withdrawal processing failed: {e}', 'danger')
+    with get_db_connection() as conn:
+        c = conn.cursor()
+        process_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        c.execute('''
+            UPDATE withdrawals 
+            SET status = 'paid',
+                processed_by = ?,
+                process_date = ?
+            WHERE id = ?
+        ''', (session['user_id'], process_date, withdrawal_id))
+        conn.commit()
+    flash('Withdrawal processed successfully!', 'success')
     return redirect(url_for('admin_dashboard'))
 
 @app.route('/fix-payments-schema')
 def fix_payments_schema():
     try:
-        with get_db_connection() as conn:
-            c = conn.cursor()
-            c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='payments_backup'")
-            if not c.fetchone():
-                c.execute("CREATE TABLE IF NOT EXISTS payments_backup AS SELECT * FROM payments")
-            c.execute("DROP TABLE IF EXISTS payments")
-            c.execute('''
-                CREATE TABLE IF NOT EXISTS payments (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER,
-                    amount REAL,
-                    payment_date TEXT,
-                    transaction_id TEXT,
-                    reference TEXT,
-                    status TEXT,
-                    FOREIGN KEY(user_id) REFERENCES users(id)
-                )
-            ''')
-            conn.commit()
-        logger.info("Payments table schema fixed successfully.")
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='payments_backup'")
+        if not c.fetchone():
+            c.execute("CREATE TABLE IF NOT EXISTS payments_backup AS SELECT * FROM payments")
+        c.execute("DROP TABLE IF EXISTS payments")
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS payments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                amount REAL,
+                payment_date TEXT,
+                transaction_id TEXT,
+                reference TEXT,
+                status TEXT,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+        ''')
+        conn.commit()
+        conn.close()
         return '✅ Payments table dropped and recreated successfully.'
     except Exception as e:
-        logger.error(f"Failed to recreate payments table: {e}\n{traceback.format_exc()}")
         return f'❌ Failed to recreate payments table: {e}'
 
 if __name__ == '__main__':

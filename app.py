@@ -56,7 +56,7 @@ def init_db():
                 referral_id TEXT NOT NULL,
                 password TEXT NOT NULL,
                 is_active INTEGER DEFAULT 0,
-                balance INTEGER DEFAULT 0,
+                balance REAL DEFAULT 0,
                 member_id TEXT UNIQUE,
                 registration_date TEXT,
                 activated_by TEXT,
@@ -77,7 +77,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS payments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER,
-                amount INTEGER,
+                amount REAL,
                 payment_date TEXT,
                 transaction_id TEXT,
                 status TEXT DEFAULT 'pending',
@@ -88,11 +88,13 @@ def init_db():
             CREATE TABLE IF NOT EXISTS withdrawals (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 user_id INTEGER,
-                amount INTEGER,
+                amount REAL,
                 status TEXT DEFAULT 'pending',
                 request_date TEXT,
                 processed_by INTEGER,
                 process_date TEXT,
+                member_id TEXT,
+                fullname TEXT,
                 FOREIGN KEY(user_id) REFERENCES users(id),
                 FOREIGN KEY(processed_by) REFERENCES users(id)
             )
@@ -229,7 +231,7 @@ def initiate_payment():
     user_id = session['user_id']
 
     if request.method == 'POST':
-        amount = request.form.get('amount', type=int)
+        amount = request.form.get('amount', type=float)
         phone = request.form.get('phone')
 
         if not amount or amount <= 0:
@@ -254,9 +256,7 @@ def initiate_payment():
                 "reason": f"Team15 payment for user {session['member_id']}"
             }
 
-            # Short timeout to avoid Heroku crash
             response = requests.post(EASYPAY_API_URL, json=payload, timeout=5)
-
             res_data = response.json()
 
             if res_data.get('success') == 1:
@@ -277,7 +277,6 @@ def initiate_payment():
                 return redirect(url_for('initiate_payment'))
 
         except requests.exceptions.ReadTimeout:
-            # Still insert as pending
             with get_db_connection() as conn:
                 c = conn.cursor()
                 payment_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -287,7 +286,7 @@ def initiate_payment():
                 ''', (user_id, amount, payment_date, reference, 'pending'))
                 conn.commit()
 
-            flash(' Please approve the mobile money prompt and log in to continue.', 'info')
+            flash('Please approve the mobile money prompt and log in to continue.', 'info')
             return redirect(url_for('login'))
 
         except Exception as e:
@@ -302,7 +301,7 @@ def easypay_callback():
     try:
         data = request.get_json()
         reference = data.get('reference')
-        amount = int(data.get('amount', 0))
+        amount = float(data.get('amount', 0))
         phone = data.get('phone')
         transaction_id = data.get('transactionId')
 
@@ -326,14 +325,13 @@ def easypay_callback():
         logger.error(f"IPN error: {e}")
         return jsonify({'status': 'error', 'message': 'Internal error'}), 500
 
-
 @app.route('/withdraw', methods=['POST'])
 def withdraw():
     if 'logged_in' not in session or session.get('is_admin'):
         flash('Login required', 'danger')
         return redirect(url_for('login'))
     user_id = session['user_id']
-    amount = request.form.get('amount', type=int)
+    amount = request.form.get('amount', type=float)
     method = request.form.get('method')
     if not amount or amount <= 0:
         flash('Please enter a valid withdrawal amount.', 'warning')
@@ -343,7 +341,7 @@ def withdraw():
         return redirect(url_for('user_dashboard'))
     with get_db_connection() as conn:
         c = conn.cursor()
-        c.execute("SELECT balance FROM users WHERE id = ?", (user_id,))
+        c.execute("SELECT balance, member_id, fullname FROM users WHERE id = ?", (user_id,))
         user = c.fetchone()
         if not user:
             flash('User not found.', 'danger')
@@ -355,9 +353,9 @@ def withdraw():
         c.execute("UPDATE users SET balance = ? WHERE id = ?", (new_balance, user_id))
         request_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         c.execute('''
-            INSERT INTO withdrawals (user_id, amount, status, request_date)
-            VALUES (?, ?, ?, ?)
-        ''', (user_id, amount, 'pending', request_date))
+            INSERT INTO withdrawals (user_id, amount, status, request_date, member_id, fullname)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (user_id, amount, 'pending', request_date, user['member_id'], user['fullname']))
         conn.commit()
     flash('Withdrawal request submitted successfully!', 'success')
     return redirect(url_for('user_dashboard'))
@@ -375,55 +373,6 @@ def admin_dashboard():
             ORDER BY u.registration_date DESC
         ''')
         users = c.fetchall()
-        c.execute("SELECT COUNT(*) FROM users")
-        total_users = c.fetchone()[0]
-        c.execute("SELECT COUNT(*) FROM users WHERE is_active = 1")
-        active_users = c.fetchone()[0]
-        c.execute("SELECT COUNT(*) FROM users WHERE is_active = 0")
-        pending_users = c.fetchone()[0]
-        c.execute("SELECT SUM(balance) FROM users")
-        total_balance = c.fetchone()[0] or 0
-    return render_template('admin/dashboard.html',
-                          users=users,
-                          total_users=total_users,
-                          active_users=active_users,
-                          pending_users=pending_users,
-                          total_balance=total_balance)
-
-@app.route('/admin/user-management')
-@admin_login_required
-def admin_user_management():
-    with get_db_connection() as conn:
-        c = conn.cursor()
-        c.execute('''
-            SELECT u.*, COUNT(r.referred_id) as referrals_count
-            FROM users u
-            LEFT JOIN referrals r ON u.id = r.referrer_id
-            GROUP BY u.id
-            ORDER BY u.registration_date DESC
-        ''')
-        users = c.fetchall()
-    return render_template('admin/users.html', users=users)
-
-@app.route('/admin/payment-management')
-@admin_login_required
-def admin_payment_management():
-    with get_db_connection() as conn:
-        c = conn.cursor()
-        c.execute('''
-            SELECT p.*, u.member_id, u.fullname 
-            FROM payments p
-            JOIN users u ON p.user_id = u.id
-            ORDER BY p.payment_date DESC
-        ''')
-        payments = c.fetchall()
-    return render_template('admin/payments.html', payments=payments)
-
-@app.route('/admin/withdrawal-management')
-@admin_login_required
-def admin_withdrawal_management():
-    with get_db_connection() as conn:
-        c = conn.cursor()
         c.execute('''
             SELECT w.*, u.member_id, u.fullname 
             FROM withdrawals w
@@ -431,7 +380,79 @@ def admin_withdrawal_management():
             ORDER BY w.request_date DESC
         ''')
         withdrawals = c.fetchall()
-    return render_template('admin/withdrawals.html', withdrawals=withdrawals)
+    return render_template('admin/dashboard.html', users=users, withdrawals=withdrawals)
+
+@app.route('/admin/edit-user', methods=['POST'])
+@admin_login_required
+def admin_edit_user():
+    try:
+        user_id = request.form.get('user_id', type=int)
+        fullname = request.form.get('fullname')
+        phone = request.form.get('phone')
+        referral_id = request.form.get('referral_id')
+        balance = request.form.get('balance', type=float)
+
+        if not all([user_id, fullname, phone, balance is not None]):
+            flash('All required fields must be filled.', 'danger')
+            return redirect(url_for('admin_dashboard'))
+
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute("SELECT id FROM users WHERE phone = ? AND id != ?", (phone, user_id))
+            if c.fetchone():
+                flash('Phone number already exists for another user.', 'warning')
+                return redirect(url_for('admin_dashboard'))
+
+            if referral_id:
+                c.execute("SELECT id FROM users WHERE member_id = ?", (referral_id,))
+                if not c.fetchone():
+                    flash('Invalid referral ID.', 'warning')
+                    return redirect(url_for('admin_dashboard'))
+
+            c.execute('''
+                UPDATE users 
+                SET fullname = ?, phone = ?, referral_id = ?, balance = ?
+                WHERE id = ?
+            ''', (fullname, phone, referral_id or 'SYSTEM', balance, user_id))
+            conn.commit()
+
+        flash('User updated successfully!', 'success')
+    except Exception as e:
+        logger.error(f"User edit failed: {e}")
+        flash(f'User update failed: {e}', 'danger')
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/delete-user/<int:user_id>')
+@admin_login_required
+def admin_delete_user(user_id):
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute("SELECT is_admin, balance FROM users WHERE id = ?", (user_id,))
+            user = c.fetchone()
+            if not user:
+                flash('User not found.', 'danger')
+                return redirect(url_for('admin_dashboard'))
+            if user['is_admin']:
+                flash('Cannot delete an admin account.', 'warning')
+                return redirect(url_for('admin_dashboard'))
+            if user['balance'] > 0:
+                flash('Cannot delete user with positive balance.', 'warning')
+                return redirect(url_for('admin_dashboard'))
+            c.execute("SELECT id FROM withdrawals WHERE user_id = ? AND status = 'pending'", (user_id,))
+            if c.fetchone():
+                flash('Cannot delete user with pending withdrawals.', 'warning')
+                return redirect(url_for('admin_dashboard'))
+            c.execute("DELETE FROM referrals WHERE referrer_id = ? OR referred_id = ?", (user_id, user_id))
+            c.execute("DELETE FROM payments WHERE user_id = ?", (user_id,))
+            c.execute("DELETE FROM withdrawals WHERE user_id = ?", (user_id,))
+            c.execute("DELETE FROM users WHERE id = ?", (user_id,))
+            conn.commit()
+        flash('User deleted successfully!', 'success')
+    except Exception as e:
+        logger.error(f"User deletion failed: {e}")
+        flash(f'User deletion failed: {e}', 'danger')
+    return redirect(url_for('admin_dashboard'))
 
 @app.route('/admin/activate-user/<int:user_id>')
 @admin_login_required
@@ -469,7 +490,7 @@ def admin_activate_user(user_id):
     except Exception as e:
         logger.error(f"Activation failed: {e}")
         flash(f'Activation failed: {e}', 'danger')
-    return redirect(url_for('admin_user_management'))
+    return redirect(url_for('admin_dashboard'))
 
 @app.route('/admin/deactivate-user/<int:user_id>')
 @admin_login_required
@@ -480,10 +501,10 @@ def admin_deactivate_user(user_id):
         user = c.fetchone()
         if not user:
             flash('User not found.', 'danger')
-            return redirect(url_for('admin_user_management'))
+            return redirect(url_for('admin_dashboard'))
         if user['is_admin']:
             flash('Cannot deactivate an admin account.', 'warning')
-            return redirect(url_for('admin_user_management'))
+            return redirect(url_for('admin_dashboard'))
         c.execute('''
             UPDATE users 
             SET is_active = 0,
@@ -493,7 +514,7 @@ def admin_deactivate_user(user_id):
         ''', (user_id,))
         conn.commit()
     flash('User deactivated successfully!', 'success')
-    return redirect(url_for('admin_user_management'))
+    return redirect(url_for('admin_dashboard'))
 
 @app.route('/admin/process-withdrawal/<int:withdrawal_id>')
 @admin_login_required
@@ -510,23 +531,17 @@ def admin_process_withdrawal(withdrawal_id):
         ''', (session['user_id'], process_date, withdrawal_id))
         conn.commit()
     flash('Withdrawal processed successfully!', 'success')
-    return redirect(url_for('admin_withdrawal_management'))
+    return redirect(url_for('admin_dashboard'))
 
 @app.route('/fix-payments-schema')
 def fix_payments_schema():
     try:
         conn = get_db_connection()
         c = conn.cursor()
-
-        # Backup old payments data (only if exists)
         c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='payments_backup'")
         if not c.fetchone():
             c.execute("CREATE TABLE IF NOT EXISTS payments_backup AS SELECT * FROM payments")
-
-        # Drop old table
         c.execute("DROP TABLE IF EXISTS payments")
-
-        # Recreate payments table with correct schema
         c.execute('''
             CREATE TABLE IF NOT EXISTS payments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -535,7 +550,8 @@ def fix_payments_schema():
                 payment_date TEXT,
                 transaction_id TEXT,
                 reference TEXT,
-                status TEXT
+                status TEXT,
+                FOREIGN KEY(user_id) REFERENCES users(id)
             )
         ''')
         conn.commit()
@@ -543,7 +559,6 @@ def fix_payments_schema():
         return '✅ Payments table dropped and recreated successfully.'
     except Exception as e:
         return f'❌ Failed to recreate payments table: {e}'
-
 
 if __name__ == '__main__':
     app.run(debug=True)

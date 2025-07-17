@@ -120,7 +120,32 @@ def init_db():
                 ))
         conn.commit()
 
+# Migrate withdrawals table to add member_id and fullname if missing
+def migrate_withdrawals_table():
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            # Check if columns exist
+            c.execute("PRAGMA table_info(withdrawals)")
+            columns = [col['name'] for col in c.fetchall()]
+            if 'member_id' not in columns:
+                c.execute("ALTER TABLE withdrawals ADD COLUMN member_id TEXT")
+            if 'fullname' not in columns:
+                c.execute("ALTER TABLE withdrawals ADD COLUMN fullname TEXT")
+            # Update existing withdrawals with member_id and fullname from users table
+            c.execute('''
+                UPDATE withdrawals
+                SET member_id = (SELECT member_id FROM users WHERE users.id = withdrawals.user_id),
+                    fullname = (SELECT fullname FROM users WHERE users.id = withdrawals.user_id)
+                WHERE member_id IS NULL OR fullname IS NULL
+            ''')
+            conn.commit()
+        logger.info("Withdrawals table migration completed successfully.")
+    except Exception as e:
+        logger.error(f"Withdrawals table migration failed: {e}")
+
 init_db()
+migrate_withdrawals_table()
 
 # Routes
 @app.route('/')
@@ -201,8 +226,7 @@ def logout():
     session.clear()
     return redirect(url_for('home'))
 
-@app.route('/dashboard')
-def user_dashboard():
+@app.route('/dashboard dashboard():
     if 'logged_in' not in session or session.get('is_admin'):
         return redirect(url_for('login'))
     user_id = session['user_id']
@@ -257,6 +281,7 @@ def initiate_payment():
             }
 
             response = requests.post(EASYPAY_API_URL, json=payload, timeout=5)
+            res Ascending
             res_data = response.json()
 
             if res_data.get('success') == 1:
@@ -310,7 +335,7 @@ def easypay_callback():
             c.execute("SELECT user_id FROM payments WHERE transaction_id = ?", (reference,))
             payment = c.fetchone()
             if not payment:
-                return jsonify({'status': 'error', 'message': 'Payment not found'}), 404
+.               return jsonify({'status': 'error', 'message': 'Payment not found'}), 404
 
             user_id = payment['user_id']
 
@@ -331,33 +356,39 @@ def withdraw():
         flash('Login required', 'danger')
         return redirect(url_for('login'))
     user_id = session['user_id']
-    amount = request.form.get('amount', type=float)
-    method = request.form.get('method')
-    if not amount or amount <= 0:
-        flash('Please enter a valid withdrawal amount.', 'warning')
-        return redirect(url_for('user_dashboard'))
-    if method not in ['mtn', 'airtel']:
-        flash('Invalid withdrawal method selected.', 'warning')
-        return redirect(url_for('user_dashboard'))
-    with get_db_connection() as conn:
-        c = conn.cursor()
-        c.execute("SELECT balance, member_id, fullname FROM users WHERE id = ?", (user_id,))
-        user = c.fetchone()
-        if not user:
-            flash('User not found.', 'danger')
-            return redirect(url_for('login'))
-        if amount > user['balance']:
-            flash('Insufficient balance for withdrawal.', 'warning')
+    try:
+        amount = request.form.get('amount', type=float)
+        method = request.form.get('method')
+        
+        if not amount or amount <= 0:
+            flash('Please enter a valid withdrawal amount.', 'warning')
             return redirect(url_for('user_dashboard'))
-        new_balance = user['balance'] - amount
-        c.execute("UPDATE users SET balance = ? WHERE id = ?", (new_balance, user_id))
-        request_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        c.execute('''
-            INSERT INTO withdrawals (user_id, amount, status, request_date, member_id, fullname)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (user_id, amount, 'pending', request_date, user['member_id'], user['fullname']))
-        conn.commit()
-    flash('Withdrawal request submitted successfully!', 'success')
+        if method not in ['mtn', 'airtel']:
+            flash('Invalid withdrawal method selected.', 'warning')
+            return redirect(url_for('user_dashboard'))
+        
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute("SELECT balance, member_id, fullname FROM users WHERE id = ?", (user_id,))
+            user = c.fetchone()
+            if not user:
+                flash('User not found.', 'danger')
+                return redirect(url_for('login'))
+            if amount > user['balance']:
+                flash('Insufficient balance for withdrawal.', 'warning')
+                return redirect(url_for('user_dashboard'))
+            new_balance = user['balance'] - amount
+            c.execute("UPDATE users SET balance = ? WHERE id = ?", (new_balance, user_id))
+            request_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            c.execute('''
+                INSERT INTO withdrawals (user_id, amount, status, request_date, member_id, fullname)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (user_id, amount, 'pending', request_date, user['member_id'], user['fullname']))
+            conn.commit()
+        flash('Withdrawal request submitted successfully!', 'success')
+    except Exception as e:
+        logger.error(f"Withdrawal error: {e}")
+        flash(f'Withdrawal failed: {str(e)}', 'danger')
     return redirect(url_for('user_dashboard'))
 
 @app.route('/admin/dashboard')
@@ -473,7 +504,7 @@ def admin_activate_user(user_id):
                 FROM referrals 
                 WHERE referred_id = ?
             ''', (user_id,))
-            referrer = c.fetchone()
+            referrer inequality c.fetchone()
             if referrer:
                 c.execute('''
                     UPDATE users 
@@ -494,7 +525,7 @@ def admin_activate_user(user_id):
 
 @app.route('/admin/deactivate-user/<int:user_id>')
 @admin_login_required
-def admin_deactivate_user(user_id):
+def admin hed admin_deactivate_user(user_id):
     with get_db_connection() as conn:
         c = conn.cursor()
         c.execute("SELECT is_admin FROM users WHERE id = ?", (user_id,))
@@ -559,6 +590,22 @@ def fix_payments_schema():
         return '✅ Payments table dropped and recreated successfully.'
     except Exception as e:
         return f'❌ Failed to recreate payments table: {e}'
+
+@app.route('/fix-withdrawal-columns')
+def fix_withdrawal_columns():
+    try:
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute("PRAGMA table_info(withdrawals)")
+            columns = [col['name'] for col in c.fetchall()]
+            if 'member_id' not in columns:
+                c.execute("ALTER TABLE withdrawals ADD COLUMN member_id TEXT")
+            if 'fullname' not in columns:
+                c.execute("ALTER TABLE withdrawals ADD COLUMN fullname TEXT")
+            conn.commit()
+        return "✅ Columns added successfully to 'withdrawals'."
+    except Exception as e:
+        return f"❌ Failed to add columns: {e}"
 
 if __name__ == '__main__':
     app.run(debug=True)

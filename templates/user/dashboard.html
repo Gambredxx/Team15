@@ -73,7 +73,7 @@
           {% endfor %}
         </div>
       {% endif %}
-    {%y endwith %}
+    {% endwith %}
 
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
       <div class="bg-white rounded-xl shadow-md p-6 text-center animate-fadeInUp">
@@ -88,11 +88,10 @@
             type="number"
             id="amount"
             name="amount"
-            min="5500"
-            value="5500"
+            min="1000"
             required
             class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-            placeholder="Enter amount to withdraw (minimum 5500)"
+            placeholder="Enter amount to withdraw"
           />
 
           <label for="phone" class="block text-gray-700 font-semibold">Phone Number</label>

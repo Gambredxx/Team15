@@ -80,6 +80,7 @@ def init_db():
                 amount REAL,
                 payment_date TEXT,
                 transaction_id TEXT,
+                reference TEXT,
                 status TEXT DEFAULT 'pending',
                 FOREIGN KEY(user_id) REFERENCES users(id)
             )
@@ -156,7 +157,7 @@ def login():
 def register():
     if request.method == 'POST':
         fullname = request.form.get('fullname')
-        phone = request.form.get('referral_id')
+        phone = request.form.get('phone')
         referral_id = request.form.get('referral_id')
         password = request.form.get('password')
         if not all([fullname, phone, referral_id, password]):
@@ -245,6 +246,15 @@ def initiate_payment():
         try:
             reference = f"REF{datetime.utcnow().strftime('%Y%m%d%H%M%S')}{user_id}"
 
+            with get_db_connection() as conn:
+                c = conn.cursor()
+                payment_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                c.execute('''
+                    INSERT INTO payments (user_id, amount, payment_date, transaction_id, reference, status)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (user_id, amount, payment_date, reference, reference, 'pending'))
+                conn.commit()
+
             payload = {
                 "username": EASYPAY_CLIENT_ID,
                 "password": EASYPAY_SECRET,
@@ -255,15 +265,6 @@ def initiate_payment():
                 "reference": reference,
                 "reason": f"Team15 payment for user {session['member_id']}"
             }
-
-            with get_db_connection() as conn:
-                c = conn.cursor()
-                payment_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                c.execute('''
-                    INSERT INTO payments (user_id, amount, payment_date, transaction_id, status)
-                    VALUES (?, ?, ?, ?, ?)
-                ''', (user_id, amount, payment_date, reference, 'pending'))
-                conn.commit()
 
             response = requests.post(EASYPAY_API_URL, json=payload, timeout=5)
             res_data = response.json()
@@ -297,14 +298,14 @@ def easypay_callback():
 
         with get_db_connection() as conn:
             c = conn.cursor()
-            c.execute("SELECT user_id FROM payments WHERE transaction_id = ?", (reference,))
+            c.execute("SELECT user_id FROM payments WHERE reference = ?", (reference,))
             payment = c.fetchone()
             if not payment:
                 return jsonify({'status': 'error', 'message': 'Payment not found'}), 404
 
             user_id = payment['user_id']
 
-            c.execute("UPDATE payments SET status = 'completed' WHERE transaction_id = ?", (reference,))
+            c.execute("UPDATE payments SET status = 'completed', transaction_id = ? WHERE reference = ?", (transaction_id, reference))
             c.execute("UPDATE users SET balance = balance + ? WHERE id = ?", (amount, user_id))
             conn.commit()
 
@@ -472,9 +473,9 @@ def admin_activate_user(user_id):
                 ''', (referrer['referrer_id'],))
                 payment_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 c.execute('''
-                    INSERT INTO payments (user_id, amount, payment_date)
-                    VALUES (?, ?, ?)
-                ''', (referrer['referrer_id'], 5000, payment_date))
+                    INSERT INTO payments (user_id, amount, payment_date, status)
+                    VALUES (?, ?, ?, ?)
+                ''', (referrer['referrer_id'], 5000, payment_date, 'completed'))
             conn.commit()
         flash('User activated successfully! Referrer received 5000 bonus.', 'success')
     except Exception as e:

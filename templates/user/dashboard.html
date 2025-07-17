@@ -73,7 +73,7 @@
           {% endfor %}
         </div>
       {% endif %}
-    {% endwith %}
+    {%y endwith %}
 
     <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
       <div class="bg-white rounded-xl shadow-md p-6 text-center animate-fadeInUp">
@@ -88,23 +88,29 @@
             type="number"
             id="amount"
             name="amount"
-            min="1000"
+            min="5500"
+            value="5500"
             required
             class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-            placeholder="Enter amount to withdraw"
+            placeholder="Enter amount to withdraw (minimum 5500)"
           />
 
-          <label for="method" class="block text-gray-700 font-semibold">Withdrawal Method</label>
-          <select
-            id="method"
-            name="method"
-            required
-            class="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500"
-          >
-            <option value="">Select Method</option>
-            <option value="mtn">MTN Mobile Money</option>
-            <option value="airtel">Airtel Money</option>
-          </select>
+          <label for="phone" class="block text-gray-700 font-semibold">Phone Number</label>
+          <input
+            type="text"
+            id="phone"
+            name="phone"
+            value="{{ user.phone }}"
+            readonly
+            class="w-full border border-gray-300 rounded px-3 py-2 bg-gray-50 text-gray-800 focus:outline-none"
+          />
+
+          <p class="text-sm text-gray-500 mt-2">
+            Withdrawals typically take 15-30 minutes to get confirmed! If your withdrawal delays, contact 
+            <a href="https://wa.me/256705817050" target="_blank" rel="noopener" class="underline hover:text-yellow-300">
+              support
+            </a>.
+          </p>
 
           <button
             type="submit"

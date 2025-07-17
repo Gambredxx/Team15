@@ -156,7 +156,7 @@ def login():
 def register():
     if request.method == 'POST':
         fullname = request.form.get('fullname')
-        phone = request.form.get('phone')
+        phone = request.form.get('referral_id')
         referral_id = request.form.get('referral_id')
         password = request.form.get('password')
         if not all([fullname, phone, referral_id, password]):
@@ -256,27 +256,6 @@ def initiate_payment():
                 "reason": f"Team15 payment for user {session['member_id']}"
             }
 
-            response = requests.post(EASYPAY_API_URL, json=payload, timeout=5)
-            res_data = response.json()
-
-            if res_data.get('success') == 1:
-                with get_db_connection() as conn:
-                    c = conn.cursor()
-                    payment_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    c.execute('''
-                        INSERT INTO payments (user_id, amount, payment_date, transaction_id, status)
-                        VALUES (?, ?, ?, ?, ?)
-                    ''', (user_id, amount, payment_date, reference, 'pending'))
-                    conn.commit()
-
-                flash('Payment initiated. Please approve the mobile money prompt and log in to continue.', 'success')
-                return redirect(url_for('login'))
-
-            else:
-                flash(f"Payment initiation failed: {res_data.get('errormsg', 'Unknown error')}", 'danger')
-                return redirect(url_for('initiate_payment'))
-
-        except requests.exceptions.ReadTimeout:
             with get_db_connection() as conn:
                 c = conn.cursor()
                 payment_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -286,12 +265,23 @@ def initiate_payment():
                 ''', (user_id, amount, payment_date, reference, 'pending'))
                 conn.commit()
 
-            flash('Please approve the mobile money prompt and log in to continue.', 'info')
+            response = requests.post(EASYPAY_API_URL, json=payload, timeout=5)
+            res_data = response.json()
+
+            if res_data.get('success') == 1:
+                flash('Payment initiated. Please approve the mobile money prompt on your phone, then log in to continue.', 'success')
+                return redirect(url_for('login'))
+            else:
+                flash(f"Payment initiation failed: {res_data.get('errormsg', 'Unknown error')}. Please try again or contact support.", 'danger')
+                return redirect(url_for('initiate_payment'))
+
+        except requests.exceptions.ReadTimeout:
+            flash('Payment request sent. Please approve the mobile money prompt on your phone, then log in to continue.', 'info')
             return redirect(url_for('login'))
 
         except Exception as e:
             logger.error(f"Payment error: {e}")
-            flash(f'Payment initiation failed: {e}', 'danger')
+            flash(f'Payment initiation failed: {e}. Please try again or contact support.', 'danger')
             return redirect(url_for('initiate_payment'))
 
     return render_template('user/initiate_payment.html')

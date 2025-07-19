@@ -6,15 +6,15 @@ import logging
 import requests
 import hashlib
 import json
+import os
 
 app = Flask(__name__)
-app.secret_key = 'your_secret_key_here'
+app.secret_key = os.getenv('SECRET_KEY', 'your_secret_key_here')  # Use environment variable for secret key
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # EasyPay Configuration
-import os
 EASYPAY_CLIENT_ID = os.getenv('EASYPAY_CLIENT_ID')
 EASYPAY_SECRET = os.getenv('EASYPAY_SECRET')
 EASYPAY_API_URL = os.getenv('EASYPAY_API_URL')
@@ -121,6 +121,23 @@ def init_db():
         conn.commit()
 
 init_db()
+
+# Temporary route to fix payments table schema
+@app.route('/fix-payments-table')
+@admin_login_required  # Restrict to admins for security
+def fix_payments_table():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("ALTER TABLE payments ADD COLUMN status TEXT DEFAULT 'pending'")
+        conn.commit()
+        conn.close()
+        flash("✅ Column 'status' added to payments table.", 'success')
+        return redirect(url_for('admin_dashboard'))
+    except sqlite3.OperationalError as e:
+        conn.close()
+        flash(f"⚠️ Failed to add status column: {e}", 'danger')
+        return redirect(url_for('admin_dashboard'))
 
 # Routes
 @app.route('/')

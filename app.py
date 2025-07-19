@@ -1,8 +1,8 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from datetime import datetime
 from functools import wraps
-import psycopg2
-import psycopg2.extras
+import psycopg
+import psycopg.rows
 import logging
 import requests
 import os
@@ -25,17 +25,16 @@ EASYPAY_IPN_URL = os.getenv('EASYPAY_IPN_URL', 'https://your-render-app.onrender
 # Database connection
 def get_db_connection():
     try:
-        conn = psycopg2.connect(os.getenv('DATABASE_URL'))
-        conn.set_session(autocommit=False)
+        conn = psycopg.connect(os.getenv('DATABASE_URL'), autocommit=False)
         return conn
-    except Exception as e:
+    except psycopg.Error as e:
         logger.error(f"Database connection failed: {e}")
         raise
 
 # Generate unique member ID
 def generate_member_id():
     with get_db_connection() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as c:
+        with conn.cursor(row_factory=psycopg.rows.dict_row) as c:
             c.execute("SELECT member_id FROM users WHERE member_id LIKE 'T15-%'")
             existing_ids = [int(row['member_id'].split('-')[1]) for row in c.fetchall() if row['member_id']]
             next_id = max(existing_ids, default=1000) + 1
@@ -116,20 +115,21 @@ def init_db():
                 {'phone': '0701618842', 'member_id': 'TM00001', 'password': 'admin123', 'balance': 13000},
                 {'phone': '0394005261', 'member_id': 'TM00002', 'password': 'admin123', 'balance': 0},
             ]
-            for admin in admins:
-                c.execute("SELECT id FROM users WHERE phone = %s", (admin['phone'],))
-                if not c.fetchone():
-                    registration_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    c.execute('''
-                        INSERT INTO users 
-                        (fullname, phone, referral_id, password, is_active, 
-                         balance, member_id, registration_date, is_admin)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ''', (
-                        f"Admin {admin['member_id']}", admin['phone'], 'SYSTEM', 
-                        admin['password'], True, admin['balance'], admin['member_id'], 
-                        registration_date, True
-                    ))
+            with conn.cursor(row_factory=psycopg.rows.dict_row) as c:
+                for admin in admins:
+                    c.execute("SELECT id FROM users WHERE phone = %s", (admin['phone'],))
+                    if not c.fetchone():
+                        registration_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        c.execute('''
+                            INSERT INTO users 
+                            (fullname, phone, referral_id, password, is_active, 
+                             balance, member_id, registration_date, is_admin)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ''', (
+                            f"Admin {admin['member_id']}", admin['phone'], 'SYSTEM', 
+                            admin['password'], True, admin['balance'], admin['member_id'], 
+                            registration_date, True
+                        ))
             conn.commit()
 
 init_db()
@@ -145,7 +145,7 @@ def login():
         phone = request.form['phone']
         password = request.form['password']
         with get_db_connection() as conn:
-            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as c:
+            with conn.cursor(row_factory=psycopg.rows.dict_row) as c:
                 c.execute("SELECT * FROM users WHERE phone = %s AND password = %s", (phone, password))
                 user = c.fetchone()
                 conn.commit()
@@ -177,7 +177,7 @@ def register():
             return redirect(url_for('register'))
         try:
             with get_db_connection() as conn:
-                with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as c:
+                with conn.cursor(row_factory=psycopg.rows.dict_row) as c:
                     c.execute("SELECT id FROM users WHERE phone = %s", (phone,))
                     if c.fetchone():
                         flash('Phone number already exists.', 'warning')
@@ -205,7 +205,7 @@ def register():
                     session['is_admin'] = False
                     session['member_id'] = member_id
                     return redirect(url_for('initiate_payment'))
-        except Exception as e:
+        except psycopg.Error as e:
             flash('Registration failed: ' + str(e), 'danger')
             return redirect(url_for('register'))
     return render_template('register.html')
@@ -221,7 +221,7 @@ def user_dashboard():
         return redirect(url_for('login'))
     user_id = session['user_id']
     with get_db_connection() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as c:
+        with conn.cursor(row_factory=psycopg.rows.dict_row) as c:
             c.execute("SELECT * FROM users WHERE id = %s", (user_id,))
             user = c.fetchone()
             c.execute("SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE user_id = %s", (user_id,))
@@ -311,7 +311,7 @@ def easypay_callback():
         transaction_id = data.get('transactionId')
 
         with get_db_connection() as conn:
-            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as c:
+            with conn.cursor(row_factory=psycopg.rows.dict_row) as c:
                 c.execute("SELECT user_id FROM payments WHERE reference = %s", (reference,))
                 payment = c.fetchone()
                 if not payment:
@@ -345,7 +345,7 @@ def withdraw():
         flash('Invalid withdrawal method selected.', 'warning')
         return redirect(url_for('user_dashboard'))
     with get_db_connection() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as c:
+        with conn.cursor(row_factory=psycopg.rows.dict_row) as c:
             c.execute("SELECT balance, member_id, fullname FROM users WHERE id = %s", (user_id,))
             user = c.fetchone()
             if not user:
@@ -369,7 +369,7 @@ def withdraw():
 @admin_login_required
 def admin_dashboard():
     with get_db_connection() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as c:
+        with conn.cursor(row_factory=psycopg.rows.dict_row) as c:
             c.execute('''
                 SELECT u.*, COUNT(r.referred_id) as referrals_count
                 FROM users u
@@ -403,7 +403,7 @@ def admin_edit_user():
             return redirect(url_for('admin_dashboard'))
 
         with get_db_connection() as conn:
-            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as c:
+            with conn.cursor(row_factory=psycopg.rows.dict_row) as c:
                 c.execute("SELECT id FROM users WHERE phone = %s AND id != %s", (phone, user_id))
                 if c.fetchone():
                     flash('Phone number already exists for another user.', 'warning')
@@ -423,7 +423,7 @@ def admin_edit_user():
                 conn.commit()
 
         flash('User updated successfully!', 'success')
-    except Exception as e:
+    except psycopg.Error as e:
         logger.error(f"User edit failed: {e}")
         flash(f'User update failed: {e}', 'danger')
     return redirect(url_for('admin_dashboard'))
@@ -433,7 +433,7 @@ def admin_edit_user():
 def admin_delete_user(user_id):
     try:
         with get_db_connection() as conn:
-            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as c:
+            with conn.cursor(row_factory=psycopg.rows.dict_row) as c:
                 c.execute("SELECT is_admin, balance FROM users WHERE id = %s", (user_id,))
                 user = c.fetchone()
                 if not user:
@@ -452,7 +452,7 @@ def admin_delete_user(user_id):
                 c.execute("DELETE FROM users WHERE id = %s", (user_id,))  # Cascades to referrals, payments, withdrawals
                 conn.commit()
         flash('User deleted successfully!', 'success')
-    except Exception as e:
+    except psycopg.Error as e:
         logger.error(f"User deletion failed: {e}")
         flash(f'User deletion failed: {e}', 'danger')
     return redirect(url_for('admin_dashboard'))
@@ -462,7 +462,7 @@ def admin_delete_user(user_id):
 def admin_activate_user(user_id):
     try:
         with get_db_connection() as conn:
-            with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as c:
+            with conn.cursor(row_factory=psycopg.rows.dict_row) as c:
                 activation_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 c.execute('''
                     UPDATE users 
@@ -490,7 +490,7 @@ def admin_activate_user(user_id):
                     ''', (referrer['referrer_id'], 5000, payment_date, 'completed'))
                 conn.commit()
         flash('User activated successfully! Referrer received 5000 bonus.', 'success')
-    except Exception as e:
+    except psycopg.Error as e:
         logger.error(f"Activation failed: {e}")
         flash(f'Activation failed: {e}', 'danger')
     return redirect(url_for('admin_dashboard'))
@@ -499,7 +499,7 @@ def admin_activate_user(user_id):
 @admin_login_required
 def admin_deactivate_user(user_id):
     with get_db_connection() as conn:
-        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as c:
+        with conn.cursor(row_factory=psycopg.rows.dict_row) as c:
             c.execute("SELECT is_admin FROM users WHERE id = %s", (user_id,))
             user = c.fetchone()
             if not user:
@@ -558,7 +558,7 @@ def fix_payments_schema():
                 ''')
                 conn.commit()
         return '✅ Payments table dropped and recreated successfully.'
-    except Exception as e:
+    except psycopg.Error as e:
         return f'❌ Failed to recreate payments table: {e}'
 
 if __name__ == '__main__':

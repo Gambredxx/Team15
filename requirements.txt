@@ -32,7 +32,7 @@ python-dateutil==2.9.0.post0
 python-dotenv==1.0.0
 pytz==2025.2
 reportlab==4.4.1
-requests==2.32.4
+requests==2.31.0
 selenium==4.33.0
 setuptools==80.9.0
 six==1.17.0
@@ -49,7 +49,3 @@ websocket-client==1.8.0
 Werkzeug==2.3.7
 wsproto==1.2.0
 WTForms==3.2.1
-Flask==2.3.3
-psycopg2-binary==2.9.9
-requests==2.31.0
-gunicorn==22.0.0

@@ -6,18 +6,18 @@ import logging
 import requests
 import hashlib
 import json
-import os
 
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'your_secret_key_here')  # Use environment variable for secret key
+app.secret_key = 'your_secret_key_here'
 
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 # EasyPay Configuration
-EASYPAY_CLIENT_ID = os.getenv('EASYPAY_CLIENT_ID')
-EASYPAY_SECRET = os.getenv('EASYPAY_SECRET')
-EASYPAY_API_URL = os.getenv('EASYPAY_API_URL')
+EASYPAY_CLIENT_ID = '331d3b1290d90f31'
+EASYPAY_SECRET = '7377396e883e612a'
+EASYPAY_API_URL = 'https://www.easypay.co.ug/api/'
+EASYPAY_IPN_URL = 'https://team15-nation-acce28c76789.herokuapp.com/easypay-webhook'
 
 # Database connection
 def get_db_connection():
@@ -102,7 +102,7 @@ def init_db():
         ''')
         admins = [
             {'phone': '0701618842', 'member_id': 'TM00001', 'password': 'admin123', 'balance': 13000},
-            {'phone': '0394005261', 'member_id': 'TM00002', 'password': 'admin123', 'balance': 0}
+            {'phone': '0394005261', 'member_id': 'TM00002', 'password': 'admin123', 'balance': 0},
         ]
         for admin in admins:
             c.execute("SELECT id FROM users WHERE phone = ?", (admin['phone'],))
@@ -121,23 +121,6 @@ def init_db():
         conn.commit()
 
 init_db()
-
-# Temporary route to fix payments table schema
-@app.route('/fix-payments-table')
-@admin_login_required  # Restrict to admins for security
-def fix_payments_table():
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("ALTER TABLE payments ADD COLUMN status TEXT DEFAULT 'pending'")
-        conn.commit()
-        conn.close()
-        flash("✅ Column 'status' added to payments table.", 'success')
-        return redirect(url_for('admin_dashboard'))
-    except sqlite3.OperationalError as e:
-        conn.close()
-        flash(f"⚠️ Failed to add status column: {e}", 'danger')
-        return redirect(url_for('admin_dashboard'))
 
 # Routes
 @app.route('/')
@@ -566,6 +549,19 @@ def fix_payments_schema():
         return '✅ Payments table dropped and recreated successfully.'
     except Exception as e:
         return f'❌ Failed to recreate payments table: {e}'
+
+@app.route('/fix-payments-table')
+def fix_payments_table():
+    try:
+        conn = sqlite3.connect('team15.db')
+        cursor = conn.cursor()
+        cursor.execute("ALTER TABLE payments ADD COLUMN status TEXT DEFAULT 'pending'")
+        conn.commit()
+        conn.close()
+        return "✅ Column 'status' added to payments table."
+    except sqlite3.OperationalError as e:
+        return f"⚠️ Failed: {e}"
+
 
 if __name__ == '__main__':
     app.run(debug=True)
